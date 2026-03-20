@@ -555,3 +555,15 @@ EdGameClaw 是 AI 驱动游戏化学习的开源基础框架。
 ---
 
 ⭐ **若对你有帮助欢迎点个 Star！**
+
+---
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=edgameclaw%2Fedgameclaw&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=edgameclaw/edgameclaw&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=edgameclaw/edgameclaw&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=edgameclaw/edgameclaw&type=date&legend=top-left" />
+ </picture>
+</a>

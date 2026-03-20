@@ -5,7 +5,6 @@
 # Generated content (user data — don't commit)
 courses/
 jobs/
-assets/audio/
 __pycache__/
 generator/__pycache__/
 *.pyc
@@ -28,3 +27,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Large media (host on GitHub Issues / Releases instead; GitHub limit 100MB)
+readme/demo.mp4

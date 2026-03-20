@@ -560,12 +560,12 @@ EdGameClaw 是 AI 驱动游戏化学习的开源基础框架。
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=edgameclaw%2Fedgameclaw%2Cyh2072%2Fedgameclaw&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=yh2072%2Fedgameclaw&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=edgameclaw/edgameclaw%2Cyh2072/edgameclaw&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=edgameclaw/edgameclaw%2Cyh2072/edgameclaw&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=edgameclaw/edgameclaw%2Cyh2072/edgameclaw&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=yh2072/edgameclaw&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=yh2072/edgameclaw&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=yh2072/edgameclaw&type=date&legend=top-left" />
  </picture>
 </a>
 
-**Interactive chart (opens in new tab):** [Star History](https://www.star-history.com/?repos=edgameclaw%2Fedgameclaw%2Cyh2072%2Fedgameclaw&type=date&legend=top-left) · **可交互图表（新标签打开）**：[Star History](https://www.star-history.com/?repos=edgameclaw%2Fedgameclaw%2Cyh2072%2Fedgameclaw&type=date&legend=top-left)
+**Interactive chart (opens in new tab):** [Star History](https://www.star-history.com/?repos=yh2072%2Fedgameclaw&type=date&legend=top-left) · **可交互图表（新标签打开）**：[Star History](https://www.star-history.com/?repos=yh2072%2Fedgameclaw&type=date&legend=top-left)

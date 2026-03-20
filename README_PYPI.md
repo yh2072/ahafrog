@@ -4,6 +4,8 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/edgameclaw.svg)](https://pypi.org/project/edgameclaw/)
+[![GitHub](https://img.shields.io/badge/GitHub-yh2072%2Fedgameclaw-181717?logo=github)](https://github.com/yh2072/edgameclaw)
 
 **Full documentation, demo video, screenshots, and bilingual (English / 中文) guide:**  
 **https://github.com/yh2072/edgameclaw#readme**

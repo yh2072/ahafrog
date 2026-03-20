@@ -25,6 +25,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/yh2072/edgameclaw"
 Repository = "https://github.com/yh2072/edgameclaw"
+Documentation = "https://pypi.org/project/edgameclaw/"
 
 [tool.setuptools.packages.find]
 where = ["."]

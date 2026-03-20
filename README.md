@@ -7,6 +7,7 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/LLM-OpenAI%20compatible-412991?style=for-the-badge" alt="LLM" />
   <img src="https://img.shields.io/badge/Self--hosted-✓-success?style=for-the-badge" alt="Self-hosted" />
+  <a href="https://pypi.org/project/edgameclaw/"><img src="https://img.shields.io/pypi/v/edgameclaw.svg?style=for-the-badge&amp;label=PyPI" alt="PyPI version" /></a>
 </p>
 
 <p align="center">
@@ -15,6 +16,7 @@
   <a href="#quick-start-zh">快速开始</a><br />
   <a href="https://ahafrog.com"><strong>ahafrog.com</strong></a> &nbsp;·&nbsp;
   <a href="https://github.com/yh2072/edgameclaw">GitHub</a> &nbsp;·&nbsp;
+  <a href="https://pypi.org/project/edgameclaw/"><strong>PyPI</strong></a> &nbsp;·&nbsp;
   <a href="https://openrouter.ai"><strong>OpenRouter</strong></a> &nbsp;·&nbsp;
   <a href="#citation">Citation</a> &nbsp;·&nbsp;
   <a href="#quick-start">Quick Start</a>

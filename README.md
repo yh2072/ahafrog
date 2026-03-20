@@ -17,6 +17,7 @@
   <a href="https://ahafrog.com"><strong>ahafrog.com</strong></a> &nbsp;·&nbsp;
   <a href="https://github.com/yh2072/edgameclaw">GitHub</a> &nbsp;·&nbsp;
   <a href="https://pypi.org/project/edgameclaw/"><strong>PyPI</strong></a> &nbsp;·&nbsp;
+  <a href="https://discord.gg/wesebXsxHV"><strong>Discord</strong></a> &nbsp;·&nbsp;
   <a href="https://openrouter.ai"><strong>OpenRouter</strong></a> &nbsp;·&nbsp;
   <a href="#citation">Citation</a> &nbsp;·&nbsp;
   <a href="#quick-start">Quick Start</a>
@@ -281,6 +282,7 @@ Built EdGameClaw as an open-source foundation for AI-powered game-based learning
 - GitHub: [@yh2072](https://github.com/yh2072)
 - Website: [yuqihang.net](https://yuqihang.net)
 - Project: [ahafrog.com](https://ahafrog.com)
+- Community: [Discord — EdGameClaw](https://discord.gg/wesebXsxHV)
 
 ---
 
@@ -537,6 +539,13 @@ EdGameClaw 是 AI 驱动游戏化学习的开源基础框架。
 - GitHub: [@yh2072](https://github.com/yh2072)
 - 个人网站：[yuqihang.net](https://yuqihang.net)
 - 官网：[ahafrog.com](https://ahafrog.com)
+- 社区：[Discord — EdGameClaw](https://discord.gg/wesebXsxHV)
+
+**微信交流群：** 使用微信扫描下方二维码加入「edgameclaw 交流」群。微信群二维码会定期失效；若无法扫码加入，请开 [GitHub Issue](https://github.com/yh2072/edgameclaw/issues) 或通过上方联系方式告知，我们会更新图片。
+
+<p align="center">
+  <img src="edgameclaw/readme/wechat.png" alt="EdGameClaw 微信群聊二维码" width="280" />
+</p>
 
 ---
 

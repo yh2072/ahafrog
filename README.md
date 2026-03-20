@@ -27,6 +27,12 @@
 
 > **Turn any learning material into playable mini-games — in minutes.**
 
+<p align="center">
+  <a href="https://www.producthunt.com/products/edgameclaw?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-edgameclaw" target="_blank" rel="noopener noreferrer">
+    <img alt="edgameclaw - Convert any learning material into a game-based course | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1103079&amp;theme=light&amp;t=1774003206790">
+  </a>
+</p>
+
 EdGameClaw is a self-hosted, open-source tool that uses AI to convert your notes, textbooks, or any structured content into interactive game-based micro-courses. Each concept gets the mini-game mechanic it deserves.
 
 **No database. No login. No cloud required. Just clone, configure, and play.**

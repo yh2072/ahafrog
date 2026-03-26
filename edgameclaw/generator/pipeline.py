@@ -39,9 +39,11 @@ def _get_generate():
 
 
 def _bind_api_config(api_key: str | None, base_url: str | None, model: str | None):
-    """Return a generate() wrapper with API config baked in."""
-    if not api_key and not model:
-        return _raw_generate
+    """Return a generate() wrapper with API config baked in.
+
+    If only model/base_url are set, still wrap so explicit kwargs are passed; missing api_key
+    is read from env (API_KEY and OPENROUTER_* are unified in server startup).
+    """
     kwargs: dict = {}
     if api_key:
         kwargs["api_key"] = api_key
@@ -49,6 +51,8 @@ def _bind_api_config(api_key: str | None, base_url: str | None, model: str | Non
         kwargs["base_url"] = base_url
     if model:
         kwargs["model"] = model
+    if not kwargs:
+        return _raw_generate
     return partial(_raw_generate, **kwargs)
 
 

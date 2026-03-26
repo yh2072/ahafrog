@@ -12,17 +12,27 @@ import time
 import httpx
 from openai import AsyncOpenAI, RateLimitError, APIConnectionError, APIStatusError
 
-# Default to OpenRouter for backward compatibility; allow override via env so we can
-# point to OpenRouter-compatible or other Gemini-capable providers.
-_OPENROUTER_BASE = os.environ.get("STUDIO_AI_BASE_URL", "https://openrouter.ai/api/v1")
-_DEFAULT_MODEL = os.environ.get("STUDIO_MODEL", "google/gemini-3-flash-preview")
+# Default to OpenRouter; API_BASE_URL / MODEL (.env) are aliases of STUDIO_* (see server._unify_ai_env_aliases).
+_OPENROUTER_BASE = (
+    os.environ.get("STUDIO_AI_BASE_URL")
+    or os.environ.get("API_BASE_URL")
+    or "https://openrouter.ai/api/v1"
+)
+_DEFAULT_MODEL = (
+    os.environ.get("STUDIO_MODEL")
+    or os.environ.get("MODEL")
+    or "google/gemini-3-flash-preview"
+)
 
 # Per-step model override: STUDIO_MODEL_<STEP> (e.g. STUDIO_MODEL_KNOWLEDGE, STUDIO_MODEL_SIM_DESIGN).
 # Step names: knowledge, dialog, pixel_icons, pixel_chars, pixel_backgrounds, cover_art,
 # sim_visual_objects, sim_design, sim_implement, sim_judge, sim_refine, review_batch, minigame_icons.
 def get_model_for_step(step: str) -> str:
     key = f"STUDIO_MODEL_{step.upper()}"
-    return os.environ.get(key, os.environ.get("STUDIO_MODEL", _DEFAULT_MODEL))
+    return os.environ.get(
+        key,
+        os.environ.get("STUDIO_MODEL") or os.environ.get("MODEL") or _DEFAULT_MODEL,
+    )
 
 _clients: dict[str, AsyncOpenAI] = {}
 _api_semaphore: asyncio.Semaphore | None = None
@@ -54,7 +64,11 @@ def _make_client(api_key: str, base_url: str) -> AsyncOpenAI:
 
 def _get_base_url() -> str:
     """Read base URL at runtime so env changes take effect without restart."""
-    return (os.environ.get("STUDIO_AI_BASE_URL") or "https://openrouter.ai/api/v1").strip()
+    return (
+        os.environ.get("STUDIO_AI_BASE_URL")
+        or os.environ.get("API_BASE_URL")
+        or "https://openrouter.ai/api/v1"
+    ).strip()
 
 
 def _get_client(api_key: str | None = None, base_url: str | None = None) -> tuple[AsyncOpenAI, str]:
@@ -64,11 +78,15 @@ def _get_client(api_key: str | None = None, base_url: str | None = None) -> tupl
         cache_key = f"{api_key[:8]}@{base_url or _get_base_url()}"
     else:
         cache_key = "__default__"
-        api_key = (os.environ.get("OPENROUTER_API_KEY_studio") or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+        api_key = (
+            (os.environ.get("OPENROUTER_API_KEY_studio") or "").strip()
+            or (os.environ.get("OPENROUTER_API_KEY") or "").strip()
+            or (os.environ.get("API_KEY") or "").strip()
+        )
         if not api_key:
             raise RuntimeError(
-                "OPENROUTER_API_KEY_studio or OPENROUTER_API_KEY environment variable is not set. "
-                "Export one before running the pipeline."
+                "No API key in environment. Set API_KEY in .env (or OPENROUTER_API_KEY / "
+                "OPENROUTER_API_KEY_studio), or pass api_key from the Studio / CLI."
             )
         base_url = _get_base_url()
 
@@ -107,7 +125,7 @@ async def generate(
     if step:
         model = get_model_for_step(step)
     elif model is None:
-        model = os.environ.get("STUDIO_MODEL", _DEFAULT_MODEL)
+        model = os.environ.get("STUDIO_MODEL") or os.environ.get("MODEL") or _DEFAULT_MODEL
     last_error: Exception | None = None
     sem = _get_semaphore()
 

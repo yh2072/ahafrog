@@ -369,7 +369,8 @@ const I18N = {
     subheading: 'Paste any learning material → AI generates interactive mini-games → Play instantly',
     'tab-create': 'Create', 'tab-courses': 'My Courses',
     'api-title': 'AI Configuration',
-    'api-key-lbl': 'API Key', 'api-key-hint': 'OpenAI-compatible key. Stored locally in browser only.',
+    'api-key-lbl': 'API Key',
+    'api-key-hint': 'Optional if the server has API_KEY in .env. Otherwise paste a key (stored in this browser only).',
     'api-model-lbl': 'Model', 'api-url-lbl': 'Base URL',
     'api-url-hint': 'OpenRouter (recommended), OpenAI, SiliconFlow, or any OpenAI-compatible endpoint.',
     'api-test': 'Test Connection', 'api-save': 'Save',
@@ -387,13 +388,15 @@ const I18N = {
     'no-courses': 'No courses yet',
     'no-courses-hint': 'Generate your first course in the Create tab!',
     'confirm-delete': 'Delete this course? This cannot be undone.',
+    'err-no-api-key': 'Enter an API key in the panel, or set API_KEY in the server .env file.',
   },
   zh: {
     heading: 'AI 游戏化学习工作室',
     subheading: '粘贴任意学习材料 → AI 生成互动小游戏 → 立即开始游戏',
     'tab-create': '创建', 'tab-courses': '我的课程',
     'api-title': 'AI 配置',
-    'api-key-lbl': 'API 密钥', 'api-key-hint': '兼容 OpenAI 格式的密钥，仅保存在浏览器本地。',
+    'api-key-lbl': 'API 密钥',
+    'api-key-hint': '若服务器 .env 已配置 API_KEY 可留空；否则在此粘贴密钥（仅保存在本浏览器）。',
     'api-model-lbl': '模型', 'api-url-lbl': '接口地址',
     'api-url-hint': '推荐使用 OpenRouter、硅基流动或任何 OpenAI 兼容接口。',
     'api-test': '测试连接', 'api-save': '保存',
@@ -411,13 +414,14 @@ const I18N = {
     'no-courses': '暂无课程',
     'no-courses-hint': '在"创建"标签页生成你的第一个课程吧！',
     'confirm-delete': '确定删除此课程？此操作不可撤销。',
+    'err-no-api-key': '请在面板填写 API 密钥，或在服务器 .env 中设置 API_KEY。',
   },
   ja: {
     heading: 'AIゲームベース学習スタジオ',
     subheading: '学習素材を貼り付け → AIがミニゲームを生成 → すぐにプレイ',
     'tab-create': '作成', 'tab-courses': 'マイコース',
     'api-title': 'AI設定', 'api-key-lbl': 'APIキー',
-    'api-key-hint': 'OpenAI互換キー。ブラウザのローカルにのみ保存されます。',
+    'api-key-hint': 'サーバーの .env に API_KEY があれば空欄で可。それ以外はキーを入力（ブラウザにのみ保存）。',
     'api-model-lbl': 'モデル', 'api-url-lbl': 'ベースURL',
     'api-url-hint': 'OpenRouter、OpenAI、またはOpenAI互換エンドポイント。',
     'api-test': '接続テスト', 'api-save': '保存',
@@ -430,6 +434,7 @@ const I18N = {
     'courses-title': '生成済みコース', refresh: '↻ 更新',
     'no-courses': 'コースがありません', 'no-courses-hint': '作成タブで最初のコースを生成してください！',
     'confirm-delete': 'このコースを削除しますか？この操作は取り消せません。',
+    'err-no-api-key': 'APIキーを入力するか、サーバーの .env に API_KEY を設定してください。',
   },
 };
 
@@ -476,10 +481,11 @@ function saveApiConfig() {
 
 function getApiConfig() {
   const cfg = JSON.parse(localStorage.getItem('edgc_api') || '{}');
+  const srv = window.__edgcServerCfg || {};
   return {
     api_key: document.getElementById('apiKey').value.trim() || cfg.key || '',
-    model: document.getElementById('apiModel').value.trim() || cfg.model || '',
-    base_url: document.getElementById('apiBaseUrl').value.trim() || cfg.baseUrl || '',
+    model: document.getElementById('apiModel').value.trim() || cfg.model || srv.model || '',
+    base_url: document.getElementById('apiBaseUrl').value.trim() || cfg.baseUrl || srv.base_url || '',
   };
 }
 
@@ -671,8 +677,9 @@ async function startGeneration() {
   if (!content.chunks.length) { toast('At least one lesson section required.', 'error'); return; }
 
   const { api_key, model, base_url } = getApiConfig();
-  if (!api_key) {
-    toast('Please enter your API key in the AI Configuration panel.', 'error');
+  const srv = window.__edgcServerCfg || {};
+  if (!api_key && !srv.has_api_key) {
+    toast(t('err-no-api-key'), 'error');
     document.getElementById('apiPanel').classList.add('open');
     return;
   }
@@ -877,35 +884,52 @@ document.querySelectorAll('.lang-sw-opt').forEach(btn => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GitHub link — read from server config (set by user)
+// Server config: optional API_KEY in .env, default model/base URL for empty fields
 // ══════════════════════════════════════════════════════════════════════════════
-async function initGhLink() {
+window.__edgcServerCfg = { has_api_key: false, model: '', base_url: '' };
+
+function applyServerApiDefaults() {
+  const srv = window.__edgcServerCfg || {};
+  const mEl = document.getElementById('apiModel');
+  const bEl = document.getElementById('apiBaseUrl');
+  if (srv.model && mEl && !mEl.value.trim()) mEl.value = srv.model;
+  if (srv.base_url && bEl && !bEl.value.trim()) bEl.value = srv.base_url;
+}
+
+async function initServerConfig() {
   try {
     const resp = await fetch('/api/config');
     const cfg = await resp.json();
+    window.__edgcServerCfg = {
+      has_api_key: !!cfg.has_api_key,
+      model: cfg.model || '',
+      base_url: cfg.base_url || '',
+      github_url: cfg.github_url || '',
+    };
     if (cfg.github_url) {
       document.getElementById('ghLink').href = cfg.github_url;
     }
-  } catch {}
+    applyServerApiDefaults();
+    if (cfg.has_api_key) {
+      const statusEl = document.getElementById('apiStatus');
+      statusEl.style.display = 'flex';
+      statusEl.className = 'api-status ok';
+      statusEl.textContent = '✅ Server API key configured — you can leave your key empty';
+    }
+  } catch {
+    window.__edgcServerCfg = { has_api_key: false, model: '', base_url: '' };
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Init
 // ══════════════════════════════════════════════════════════════════════════════
-loadApiConfig();
-applyI18n();
-renderPreview();
-initGhLink();
-
-// Check if server has API key configured (show/hide config panel accordingly)
-fetch('/api/config').then(r => r.json()).then(cfg => {
-  if (cfg.has_api_key) {
-    const statusEl = document.getElementById('apiStatus');
-    statusEl.style.display = 'flex';
-    statusEl.className = 'api-status ok';
-    statusEl.textContent = '✅ Server API key configured — you can leave your key empty';
-  }
-}).catch(() => {});
+(async function initStudio() {
+  loadApiConfig();
+  applyI18n();
+  renderPreview();
+  await initServerConfig();
+})();
 </script>
 </body>
 </html>

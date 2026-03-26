@@ -15,9 +15,10 @@ Usage:
     # OR: bash start.sh (sets PYTHONPATH for you)
 
 Environment variables (set in .env):
-    API_KEY         Your OpenAI-compatible API key (required)
-    API_BASE_URL    API base URL (default: https://openrouter.ai/api/v1)
-    MODEL           Model name (default: google/gemini-3-flash-preview)
+    API_KEY         Your OpenAI-compatible API key (required unless you paste a key in the Studio)
+                    Aliases also work: OPENROUTER_API_KEY, OPENROUTER_API_KEY_studio
+    API_BASE_URL    API base URL (default: https://openrouter.ai/api/v1); alias STUDIO_AI_BASE_URL
+    MODEL           Model name (default: google/gemini-3-flash-preview); alias STUDIO_MODEL
     PORT            Server port (default: 8000)
     BIND_HOST       Listen address (default: 127.0.0.1; use 0.0.0.0 for LAN)
     EDGAMECLAW_HOME Optional. Data directory for courses/, assets/, jobs/, courses.json
@@ -38,6 +39,41 @@ for _env_candidate in (
 
         load_dotenv(_env_candidate)
         break
+
+
+def _unify_ai_env_aliases() -> None:
+    """One key in .env is enough: sync API_KEY ↔ OPENROUTER_*, MODEL ↔ STUDIO_MODEL, URLs."""
+    import os as _os
+
+    k = (_os.environ.get("API_KEY") or "").strip()
+    if not k:
+        k = (
+            (_os.environ.get("OPENROUTER_API_KEY_studio") or "").strip()
+            or (_os.environ.get("OPENROUTER_API_KEY") or "").strip()
+        )
+        if k:
+            _os.environ["API_KEY"] = k
+    else:
+        _os.environ.setdefault("OPENROUTER_API_KEY", k)
+
+    b = (_os.environ.get("API_BASE_URL") or "").strip()
+    if not b:
+        b = (_os.environ.get("STUDIO_AI_BASE_URL") or "").strip()
+        if b:
+            _os.environ["API_BASE_URL"] = b
+    else:
+        _os.environ.setdefault("STUDIO_AI_BASE_URL", b)
+
+    m = (_os.environ.get("MODEL") or "").strip()
+    if not m:
+        m = (_os.environ.get("STUDIO_MODEL") or "").strip()
+        if m:
+            _os.environ["MODEL"] = m
+    else:
+        _os.environ.setdefault("STUDIO_MODEL", m)
+
+
+_unify_ai_env_aliases()
 
 import asyncio
 import contextvars
@@ -381,7 +417,18 @@ def _read_registry() -> list[dict]:
     return []
 
 def _write_registry(courses: list[dict]):
-    REGISTRY.write_text(json.dumps(courses, ensure_ascii=False, indent=2), encoding="utf-8")
+    payload = json.dumps(courses, ensure_ascii=False, indent=2)
+    tmp = REGISTRY.with_suffix(".tmp")
+    try:
+        tmp.write_text(payload, encoding="utf-8")
+        tmp.replace(REGISTRY)
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
+        REGISTRY.write_text(payload, encoding="utf-8")
 
 def _upsert_course(entry: dict):
     courses = _read_registry()
@@ -419,24 +466,50 @@ def _course_entry_from_manifest(course_id: str, manifest: dict) -> dict:
         "tags": meta.get("tags", []),
     }
 
-def scan_courses() -> list[dict]:
-    _prune_registry()
-    courses = _read_registry()
-    if courses:
-        return courses
-    # Fallback: scan manifest files
-    result = []
+def _discover_courses_from_disk() -> list[dict]:
+    result: list[dict] = []
     if not COURSES_DIR.exists():
         return result
     for d in sorted(COURSES_DIR.iterdir(), reverse=True):
-        if not d.is_dir(): continue
+        if not d.is_dir():
+            continue
         mp = d / "course-manifest.json"
-        if not mp.exists(): continue
+        if not mp.exists():
+            continue
         try:
             m = json.loads(mp.read_text(encoding="utf-8"))
             result.append(_course_entry_from_manifest(d.name, m))
-        except: pass
+        except Exception:
+            pass
     return result
+
+
+def _registry_needs_sync(disk: list[dict], reg: list[dict]) -> bool:
+    reg_ids = [c.get("id") for c in reg if c.get("id")]
+    disk_ids = [c["id"] for c in disk]
+    if len(reg_ids) != len(disk_ids) or set(reg_ids) != set(disk_ids):
+        return True
+    reg_by = {c["id"]: c for c in reg if c.get("id")}
+    for d in disk:
+        rid = d["id"]
+        r = reg_by.get(rid)
+        if not r:
+            return True
+        if r.get("title") != d.get("title") or r.get("total_lessons") != d.get("total_lessons"):
+            return True
+    return False
+
+
+def scan_courses() -> list[dict]:
+    """List courses from disk manifests; keep courses.json in sync for external tools."""
+    _prune_registry()
+    disk = _discover_courses_from_disk()
+    reg = _read_registry()
+    if disk and _registry_needs_sync(disk, reg):
+        _write_registry(disk)
+    if disk:
+        return disk
+    return reg
 
 
 # ── Markdown parser ─────────────────────────────────────────────────────────

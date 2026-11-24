@@ -2541,7 +2541,10 @@ async def generate_game(
         sim_name = f"sim_{idx}"
         hint = chunk.get("simulationHint", "") or chunk.get("content", "")
         minigame_data[sim_name] = {
-            "title": f"🔬 {chunk.get('title', 'Exploration')}",
+            # No decorative emoji: the title lands on a wood plate in the
+            # pack's own UI, where a colour emoji is the one thing that does
+            # not belong. Existing courses are handled by _noEmoji() at render.
+            "title": chunk.get("title", "Exploration"),
             "subtitle": hint[:300],
             "_tutorial": hint,  # full text shown in tutorial overlay before sim starts
             "portrait": "mentor",

@@ -1,0 +1,316 @@
+/* Shared game shell -- loaded by BOTH template.html (inlined at
+   assembly) and player.html (linked). Edit here, never in a shell. */
+/* ══ Presentation pass ═════════════════════════════════════════════════════
+   Styling only. Colour still comes from the 24 themes; what changes is depth,
+   fit and finish. The earlier arcade bevel was the wrong register for this —
+   the reference look is soft and elevated: one lit stage, generous radii, and
+   shadows that lift rather than outline. */
+
+/* A spotlight rather than a flat field: the page tints toward the theme's own
+   accent at the top and falls to near-black at the edges, so the stage reads
+   as lit from behind instead of pasted on. */
+body{
+  background:radial-gradient(ellipse at 50% 32%,
+    color-mix(in srgb, var(--t-bg) 82%, var(--t-accent)) 0%,
+    var(--t-bg) 62%,
+    color-mix(in srgb, var(--t-bg) 78%, #000) 100%) !important;
+  font-family:'LXGW WenKai','PixelZH',ui-monospace,'SF Mono',Menlo,'Courier New',monospace;
+  overflow:hidden;
+}
+
+/* The stage is lifted, not framed: a long soft shadow for height, a hairline
+   inset to catch the light, and the theme glow bleeding past the edge. */
+#game-container{
+  border-radius:14px !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  background:var(--t-containerBg) !important;
+  box-shadow:
+    0 18px 60px rgba(0,0,0,.45),
+    inset 0 0 0 1px color-mix(in srgb, var(--t-text) 5%, transparent),
+    0 0 48px var(--t-glow) !important;
+}
+
+/* Title screen: the world itself is the title art. The opaque spotlight that
+   used to sit here hid the scene the game spent a generation step drawing, so
+   it is now only a vignette — dark enough at the edges to hold outlined type,
+   clear enough in the middle to read as a place you are about to enter. The
+   scene behind it is painted by paintTitleBackdrop() further down. */
+#title-screen{
+  background:radial-gradient(ellipse at 50% 42%,
+    rgba(8,5,12,0.10) 0%, rgba(8,5,12,0.60) 100%) !important;
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  justify-content:center;padding:18px;overflow-y:auto;
+  animation:titleIn .6s ease both;
+}
+@keyframes titleIn{0%{opacity:0;transform:scale(1.02)}100%{opacity:1;transform:none}}
+
+/* The cover was fixed at 512x384 inside a 576px stage, so the title column
+   overflowed and its last row — the language buttons — was clipped away by
+   overflow:hidden. Size it against the stage instead. */
+#title-screen>#title-cover{
+  width:min(58%,404px) !important;height:auto !important;aspect-ratio:4/3;
+  max-height:38% !important;margin-bottom:14px !important;border-radius:12px !important;
+  box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 34px var(--t-glow) !important;
+}
+/* The scene is the artwork now, so the floating logo would be a second focal
+   point over it. Drop this rule to bring it back. */
+#title-screen>#title-logo{display:none !important}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+/* Over a lit scene a glow is invisible, so the title is outlined instead: an
+   ink ring in all eight directions plus one drop below. Eight shadows is what
+   a pixel font's 1px outline costs at this size, and it stays legible on
+   grass, water or stone without dimming the art underneath. */
+#title-screen h1{
+  color:#fffdf8 !important;
+  font-size:clamp(28px,4.6vw,44px);letter-spacing:4px;margin-bottom:16px;
+  max-width:92%;line-height:1.28;text-align:center;
+  text-shadow:
+    -3px -3px 0 var(--ui-ink), 0 -3px 0 var(--ui-ink), 3px -3px 0 var(--ui-ink),
+    -3px  0   0 var(--ui-ink),                          3px  0   0 var(--ui-ink),
+    -3px  3px 0 var(--ui-ink), 0  3px 0 var(--ui-ink),  3px  3px 0 var(--ui-ink),
+    0 7px 0 rgba(0,0,0,.45) !important;
+}
+/* The subtitle gets the same paper plate as the dialogue, which is what ties
+   the title screen to the rest of the game rather than a font choice. */
+#title-screen .subtitle{
+  color:var(--ui-paper-ink) !important;background:var(--ui-paper);
+  border:3px solid var(--ui-ink);border-radius:8px;
+  box-shadow:inset 0 0 0 3px var(--ui-gold),0 4px 0 var(--ui-wood);
+  padding:9px 22px;font-size:12px;margin-bottom:24px;
+  max-width:76%;text-align:center;line-height:1.5;
+}
+#title-screen .subtitle:empty{display:none}
+
+/* The start button is the one block of pure colour on the screen, so it is
+   where the eye lands with no arrow needed. Pressing it drops it onto its own
+   under-edge rather than scaling, which is how a pixel button behaves. */
+#title-screen .start-btn{
+  padding:13px 42px;border-radius:10px !important;font-size:16px;letter-spacing:3px;
+  background:var(--ui-orange) !important;color:var(--ui-btn-ink) !important;
+  border:3px solid var(--ui-ink) !important;
+  box-shadow:inset 0 4px 0 var(--ui-orange-lit),inset 0 -5px 0 rgba(0,0,0,.18),
+             0 5px 0 var(--ui-wood) !important;
+  display:inline-flex;align-items:center;gap:10px;
+  transition:transform .12s,background .12s,box-shadow .12s;
+}
+#title-screen .start-btn:hover{background:var(--ui-orange-lit) !important;transform:translateY(-2px);
+  box-shadow:inset 0 4px 0 #ffb877,inset 0 -5px 0 rgba(0,0,0,.14),0 7px 0 var(--ui-wood) !important}
+#title-screen .start-btn:active{transform:translateY(4px);
+  box-shadow:inset 0 4px 0 var(--ui-orange-lit),0 1px 0 var(--ui-wood) !important}
+/* Over the scene the hint needs its own contrast, not the theme's muted grey. */
+#start-hint{color:#f0e6dc !important;text-shadow:0 2px 0 rgba(0,0,0,.75),0 0 10px rgba(0,0,0,.6)}
+#player-name-input{border-radius:999px !important;padding:7px 12px;width:150px}
+#player-name-input:focus{box-shadow:0 0 12px var(--t-glowAccent)}
+.lang-opt{border-radius:999px !important;transition:all .18s;
+  padding:5px 12px !important;line-height:1.4;white-space:nowrap;font-size:11px}
+.lang-opt:hover{border-color:var(--t-accent) !important;color:var(--t-highlight) !important}
+
+/* The dialogue's own look is set in the pixel-UI rules above. What belongs
+   here is only how it sits on the scene: filter: drop-shadow follows the
+   actual silhouette, so the tab, the portrait and the paper cast one shadow
+   between them instead of three stacked rectangles. */
+#dialog-box{
+  filter:drop-shadow(5px 6px 0 var(--ui-wood)) drop-shadow(0 12px 22px rgba(0,0,0,.5));
+}
+
+/* Whoever is speaking is the only one lit. */
+.char-wrapper.silent{filter:brightness(.5);opacity:.7}
+.char-name-tag{border-radius:999px !important;padding:3px 12px;margin-bottom:6px;
+  transform:translateY(4px);transition:opacity .3s,transform .3s;
+  box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.char-wrapper.speaking .char-name-tag{opacity:1;transform:none}
+
+/* Progress reads at a glance: the dots share the width and the live one glows. */
+.ch-dot{flex:1 1 0;max-width:44px;min-width:12px;transition:background .3s,box-shadow .3s}
+.ch-dot.active{box-shadow:0 0 8px var(--t-glowAccent)}
+
+/* The audio buttons sat at bottom-left, directly on top of the dialogue box.
+   Removing the share button freed the top-right corner, so they move there:
+   out of the reading area, and clear of the dialogue at every stage width. */
+#audio-controls{top:14px !important;right:14px !important;bottom:auto !important;left:auto !important}
+/* (The round translucent pills were replaced by the pixel blocks above.) */
+.mg-btn{border-radius:999px !important;transition:transform .18s,box-shadow .18s,background .15s}
+.mg-btn:hover{transform:translateY(-1px)}
+.mg-btn:active{transform:translateY(1px)}
+.match-card{border-radius:12px !important}
+.mg-area canvas,#mini-game-overlay canvas{
+  border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.35),0 0 0 1px var(--t-border);
+}
+#mini-game-overlay,#mini-game-overlay *{font-family:'LXGW WenKai','PixelZH',ui-monospace,'SF Mono',Menlo,'Courier New',monospace}
+
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+/* ══ HUD safe zones ════════════════════════════════════════════════════════
+   The host owns two corners: sound and settings top-right, report and skip
+   bottom-right. Generated minigames draw their own header and action button,
+   which landed underneath both. Padding reserves those bands so nothing the
+   model writes can sit under host chrome — the same contract the reference
+   template states to its own authors. */
+#mini-game-overlay{padding:56px 20px 60px !important}
+#audio-controls{top:14px !important;right:14px !important;bottom:auto !important;left:auto !important;
+  z-index:210 !important;gap:6px}
+#mg-report-fixed,#mg-skip-fixed{z-index:210 !important}
+/* Keep the two bottom buttons together and clear of the content band. */
+#mg-report-fixed{right:96px !important}
+#mg-skip-fixed{right:16px !important}
+
+/* Settings: the name field and the language list left the title screen, which
+   was stacking cover, title, subtitle, name, button, hint and eight language
+   buttons into a 576px stage. */
+#settings-btn{font-size:15px;line-height:1}
+#game-settings{position:absolute;inset:0;z-index:300;display:none;align-items:center;
+  justify-content:center;background:color-mix(in srgb,var(--t-containerBg) 88%,transparent);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto}
+#game-settings.open{display:flex}
+#game-settings-inner{width:min(380px,86%);padding:20px 22px;border-radius:16px;
+  background:var(--t-dialogBg);border:2px solid var(--t-dialogBorder);
+  box-shadow:0 14px 40px rgba(0,0,0,.45),0 0 26px var(--t-glow)}
+#game-settings h3{color:var(--t-highlight);font-size:14px;letter-spacing:2px;margin-bottom:16px}
+.gs-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.gs-row>span{color:var(--t-text);font-size:12px;white-space:nowrap;opacity:.8}
+.gs-row input{flex:1;min-width:0;padding:7px 12px;border-radius:999px;background:var(--t-bg);
+  border:2px solid var(--t-inputBorder);color:var(--t-highlight);font-family:inherit;
+  font-size:13px;text-align:center;outline:none}
+.gs-row input:focus{border-color:var(--t-accent);box-shadow:0 0 12px var(--t-glowAccent)}
+.gs-langs{flex-direction:column;align-items:stretch}
+.gs-langs>span{margin-bottom:8px}
+#lang-switcher-settings{display:flex;flex-wrap:wrap;gap:6px}
+#game-settings .mg-btn{width:100%;margin-top:4px}
+/* The title screen keeps only what belongs on a title screen. */
+#title-screen #name-input-group,#title-screen #lang-switcher{display:none !important}
+
+.gs-appearance{display:flex;gap:6px}
+.gs-appearance .lang-opt[aria-pressed="true"]{border-color:var(--t-accent) !important;
+  color:var(--t-highlight) !important;background:var(--t-buttonBg) !important}
+
+/* ══ Light appearance ══════════════════════════════════════════════════════
+   Everything above assumes a lit scene in the dark: a black vignette to frame
+   it, white type, an ink outline to hold that type over grass or stone. Under
+   data-appearance="light" all three invert — white type on a pale card is
+   invisible, and a 60% black veil buries the very cover art it was meant to
+   frame. The same three ideas are restated here against paper instead of
+   night: a paper veil, ink type, a paper outline. Nothing else needs a light
+   variant, because the rest of the pass is shadow and geometry, which read
+   the same either way. */
+:root[data-appearance="light"] #title-screen{
+  background:radial-gradient(ellipse at 50% 42%,
+    rgba(255,253,246,0.04) 0%, rgba(255,253,246,0.50) 100%) !important;
+}
+:root[data-appearance="light"] #title-screen h1{
+  color:var(--t-text) !important;
+  text-shadow:
+    -3px -3px 0 var(--ui-paper), 0 -3px 0 var(--ui-paper), 3px -3px 0 var(--ui-paper),
+    -3px  0   0 var(--ui-paper),                           3px  0   0 var(--ui-paper),
+    -3px  3px 0 var(--ui-paper), 0  3px 0 var(--ui-paper), 3px  3px 0 var(--ui-paper),
+    0 7px 0 rgba(60,45,20,.22) !important;
+}
+:root[data-appearance="light"] #start-hint{
+  color:var(--t-text) !important;
+  text-shadow:0 2px 0 rgba(255,253,246,.9),0 0 10px rgba(255,253,246,.75) !important;
+}
+
+/* ══ Minigame briefing & result ════════════════════════════════════════════
+   Both screens were glass panels -- rgba(255,255,255,0.04) over a blur --
+   which is the one visual language nothing else in this game speaks. They are
+   rebuilt here in the pack's own furniture: the paper panel, ink border and
+   gold inset the dialogue uses, under a wood tab like the speaker's name
+   plate. A minigame now introduces itself in the voice the story told it in.
+
+   Sizing is capped against the stage rather than left to the content: the
+   overlay is 576px tall minus the HUD bands, so the card takes what is left
+   and the beat list is the part that gives. That is what keeps the scrollbar
+   away -- it is not hidden, there is nothing to scroll. */
+#mini-game-overlay{
+  /* A visible scrollbar is the stage admitting it does not fit. Content is
+     sized to fit above; this only stops the bar from drawing in the margin
+     while a generated minigame settles its own layout. */
+  scrollbar-width:none;
+}
+#mini-game-overlay::-webkit-scrollbar{width:0;height:0}
+
+.mg-brief{
+  position:relative;margin:auto;width:min(560px,100%);
+  max-height:100%;display:flex;flex-direction:column;
+  padding:26px 28px 24px;box-sizing:border-box;
+  background:var(--ui-paper);border:3px solid var(--ui-ink);border-radius:10px;
+  box-shadow:inset 0 0 0 4px var(--ui-gold),0 10px 0 var(--ui-wood),0 18px 40px rgba(0,0,0,.45);
+  text-align:center;
+}
+/* The wood plate the dialogue hangs a speaker's name from, reused as the
+   briefing's own plate so the two read as one set. */
+.mg-brief-title{
+  align-self:center;margin:-44px 0 16px;padding:7px 22px 9px;
+  background:var(--ui-wood);border:3px solid var(--ui-ink);border-radius:9px;
+  color:var(--ui-tab-ink);font-size:15px;letter-spacing:2px;line-height:1.3;
+  max-width:92%;box-shadow:0 4px 0 rgba(0,0,0,.25);
+}
+.mg-brief-body{flex:1 1 auto;min-height:0;overflow:hidden;margin-bottom:20px}
+.mg-brief-prose{
+  margin:0;color:var(--ui-paper-ink);font-size:13px;line-height:1.85;text-align:left;
+}
+/* Each beat is a step, so it is numbered like one. A digit in an ink chip
+   carries the same meaning in every locale this ships in -- no label to
+   translate, and no bracket left over from the spec it was written as. */
+.mg-beats{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+.mg-beats li{display:flex;align-items:flex-start;gap:11px;text-align:left}
+.mg-beat-n{
+  flex:0 0 auto;width:22px;height:22px;margin-top:1px;
+  background:var(--ui-ink);color:var(--ui-paper);border-radius:6px;
+  font-size:12px;line-height:22px;text-align:center;
+}
+.mg-beat-t{color:var(--ui-paper-ink);font-size:13px;line-height:1.7}
+
+/* The action button is the audio buttons' block, widened: a lit top edge, a
+   wooden under-edge, and a press that moves it down onto that edge. */
+.mg-cta{
+  align-self:center;padding:11px 34px;
+  background:var(--ui-orange);border:3px solid var(--ui-ink);border-radius:10px;
+  color:var(--ui-btn-ink);font-family:inherit;font-size:14px;letter-spacing:1px;cursor:pointer;
+  pointer-events:auto;
+  box-shadow:inset 0 4px 0 var(--ui-orange-lit),inset 0 -5px 0 rgba(0,0,0,.18),0 5px 0 var(--ui-wood);
+  transition:transform .12s,box-shadow .12s,background .12s;
+}
+.mg-cta:hover{background:var(--ui-orange-lit);transform:translateY(-1px);
+  box-shadow:inset 0 4px 0 #ffb877,inset 0 -5px 0 rgba(0,0,0,.14),0 6px 0 var(--ui-wood)}
+.mg-cta:active{transform:translateY(5px);box-shadow:inset 0 4px 0 var(--ui-orange-lit),0 0 0 var(--ui-wood)}
+.mg-cta-ghost{background:var(--ui-sage);
+  box-shadow:inset 0 4px 0 #a3ac96,inset 0 -5px 0 rgba(0,0,0,.18),0 5px 0 var(--ui-wood)}
+.mg-cta-ghost:hover{background:#9aa48b;
+  box-shadow:inset 0 4px 0 #b0b8a4,inset 0 -5px 0 rgba(0,0,0,.14),0 6px 0 var(--ui-wood)}
+
+.mg-result .mg-stars{font-size:38px;letter-spacing:8px;margin-bottom:14px;line-height:1}
+.mg-score-big{color:var(--ui-paper-ink);font-size:30px;line-height:1;margin-bottom:4px}
+.mg-score-unit{font-size:13px;margin-left:5px;color:var(--ui-wood)}
+.mg-xp{color:var(--ui-wood);font-size:14px;margin-bottom:22px}
+.mg-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* ══ Display type ══════════════════════════════════════════════════════════
+   PixelLatin (NinjaAdventure) is an outline face drawn for large sizes. In
+   the inherited body stack it was rendering 13px paragraphs, where antialiasing
+   turns every stroke into a grey smear and the pixel character works against
+   legibility rather than for it. It is asked for by name here instead, only
+   where the type is big enough to carry it: titles, the score, and buttons.
+   Chinese is unaffected either way -- the face has no CJK glyphs, so those
+   characters fall through to the next family per glyph, as they always did.
+
+   The overlay sets its own font on `#mini-game-overlay *`, which is an id
+   selector and outranks a class, so the overlay-resident rules below are
+   written under that id to match it rather than lose to it silently. */
+#title-screen h1,
+.start-btn,
+.audio-btn,
+#mini-game-overlay .mg-brief-title,
+#mini-game-overlay .mg-score-big, #mini-game-overlay .mg-score-unit,
+#mini-game-overlay .mg-cta{
+  font-family:'PixelLatin','PixelZH',system-ui,-apple-system,sans-serif !important;
+}
+
+/* The completion mark that stands in for a score when a minigame measured
+   nothing. It deliberately does not look like a score: no stars, no number,
+   no points unit -- so a player can always tell an earned result from a
+   finished one. */
+.mg-result .mg-done-mark{
+  color:var(--ui-paper-ink);font-size:22px;letter-spacing:2px;
+  margin-bottom:10px;line-height:1.2;
+}

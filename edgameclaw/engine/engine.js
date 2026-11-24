@@ -123,14 +123,17 @@ let playerName=GAME.defaultPlayerName||_ui.defaultPlayer||'研究员';
 let currentSpeaker=null;let currentChars=[];
 let _lastMiniGameType=null;
 
-let totalXP=0,playerLevel=0,_mgScore=0,_minigameClosing=false;
+let totalXP=0,playerLevel=0,_mgScore=null,_minigameClosing=false;
+// XP for finishing an activity that reported no score. Flat and small on
+// purpose: it credits the time spent without pretending to measure it.
+const COMPLETION_XP=20;
 const _chapterStars={};
 const _LV_THRESHOLDS=[0,120,320,600,1000,1500];
 const _LV_NAMES=_ui.levelNames||['✦ 初学者','✦✦ 探索者','✦✦✦ 学者','✧ 专家','✧✧ 大师','✧✧✧ 宗师'];
 function _getLevel(xp){for(let i=_LV_THRESHOLDS.length-1;i>=0;i--)if(xp>=_LV_THRESHOLDS[i])return i;return 0}
 function _getLevelName(lv){return _LV_NAMES[Math.min(lv,_LV_NAMES.length-1)]}
 function _getStars(s){return s>=85?3:s>=55?2:s>=25?1:0}
-function _starsText(n){return '★'.repeat(n)+'☆'.repeat(3-n)}
+function _starsText(n){if(typeof n!=='number')return '';return '★'.repeat(n)+'☆'.repeat(3-n)}
 
 function _addXP(amount){
   const oldLv=playerLevel;totalXP+=amount;playerLevel=_getLevel(totalXP);
@@ -183,7 +186,9 @@ function _showScoreFeedback(score,xpGained,stars){
   const th=GAME.theme||{};
   const starColor=stars===3?(th.success||'#90e0a0'):stars===2?(th.accent||'#ff6a9a'):(th.muted||'#c080a0');
   fb.innerHTML='<div style="animation:scorePop 0.4s">'+
-    '<div style="font-size:24px;color:'+starColor+';letter-spacing:4px">'+_starsText(stars)+'</div>'+
+    (typeof stars==='number'
+      ? '<div style="font-size:24px;color:'+starColor+';letter-spacing:4px">'+_starsText(stars)+'</div>'
+      : '')+
     '<div style="color:'+(th.highlight||'#ffc0d0')+';font-size:13px;margin-top:4px">+'+xpGained+' '+(_ui.xpUnit||'XP')+'</div></div>';
   fb.style.display='block';
   setTimeout(function(){fb.style.animation='scoreFloat 0.5s forwards';
@@ -191,6 +196,9 @@ function _showScoreFeedback(score,xpGained,stars){
 }
 
 function _updateChapterStars(ch,stars){
+  // Nothing was measured, so nothing is recorded. The chapter then stays out
+  // of the star totals entirely instead of counting as a zero out of three.
+  if(typeof stars!=='number')return;
   _chapterStars[ch]=Math.max(_chapterStars[ch]||0,stars);
   const dot=document.getElementById('ch'+ch);
   if(dot){
@@ -213,11 +221,72 @@ function personalizeText(text){return (text||'').replace(/\{player\}/g,playerNam
 
 function renderScene(bgIdx,chars){try{ctx.clearRect(0,0,128,96);if(BACKGROUNDS[bgIdx])BACKGROUNDS[bgIdx](ctx);renderCharacters(chars)}catch(e){console.error('renderScene error bg='+bgIdx,e)}}
 
+/* Which character is speaking, by the name shown on the tab. CHAR_NAME_MAP
+   holds functions rather than strings because the player's own name can
+   change in settings mid-game. */
+function _speakerId(displayName){
+  for(const[id,fn]of Object.entries(CHAR_NAME_MAP))if(fn()===displayName)return id;
+  return null;
+}
+
+/* The portrait falls back twice before giving up, so a speaker is shown with
+   whatever art the course actually has:
+     1. a pixel-pack Faceset, when the character names a `sprite`
+     2. the course's own PORTRAITS draw function
+     3. the overworld sprite the character is already drawn with, cropped to
+        head and shoulders by the frame's overflow
+   With none of the three the column is removed (.no-face) rather than left as
+   an empty frame — that is what the pack's plain DialogBox sprite looks like. */
+function updateDialogPortrait(displayName){
+  const box=document.getElementById('dialog-box');
+  const frame=document.getElementById('dialog-portrait');
+  const slot=document.getElementById('dialog-portrait-inner');
+  if(!box||!frame||!slot)return;
+  const id=_speakerId(displayName);
+  const info=(id&&typeof GAME!=='undefined'&&GAME.characters)?GAME.characters[id]:null;
+  const spriteName=info&&info.sprite;
+  slot.innerHTML='';
+  const token=++_portraitToken;
+  if(spriteName&&window.PixelPack&&PixelPack.ready){
+    PixelPack.ready().then(function(available){
+      if(token!==_portraitToken)return;          // a later line already drew
+      if(available&&PixelPack.has('character',spriteName)){
+        // The catalogue lists what the pack contains; it cannot know what is
+        // actually served. This repository ships the UI frames only, so a
+        // listed character is usually NOT on disk -- draw the procedural
+        // portrait rather than leaving a broken image in the frame.
+        const im=new Image();im.alt='';
+        im.onerror=function(){ if(token!==_portraitToken)return;
+          slot.innerHTML=''; _portraitFallback(box,slot,id,displayName); };
+        im.src=PixelPack.faceUrl('character',spriteName);
+        slot.appendChild(im);box.classList.remove('no-face');
+      }else _portraitFallback(box,slot,id,displayName);
+    });
+    return;
+  }
+  _portraitFallback(box,slot,id,displayName);
+}
+
+let _portraitToken=0;
+function _portraitFallback(box,slot,id,displayName){
+  if(window.PORTRAITS&&id&&PORTRAITS[id]){
+    slot.appendChild(makePortrait(id));box.classList.remove('no-face');return;
+  }
+  if(window.PORTRAITS&&PORTRAITS[displayName]){
+    slot.appendChild(makePortrait(displayName));box.classList.remove('no-face');return;
+  }
+  if(window.CHAR_DRAW_FNS&&id&&typeof CHAR_DRAW_FNS[id]==='function'){
+    slot.appendChild(createCharCanvas(CHAR_DRAW_FNS[id]));box.classList.remove('no-face');return;
+  }
+  box.classList.add('no-face');
+}
+
 let dialogTypingDone=false,dialogLocked=false,currentTypingInterval=null;
 function showDialog(name,text){
   const displayName=personalizeText(name);const displayText=personalizeText(text);
-  document.getElementById('dialog-box').style.display='block';
+  document.getElementById('dialog-box').style.display='flex';
   document.getElementById('dialog-name').textContent=displayName;
+  updateDialogPortrait(displayName);
   const textEl=document.getElementById('dialog-text');textEl.textContent='';
   dialogTypingDone=false;dialogLocked=true;highlightSpeaker(displayName);
   if(currentTypingInterval)clearInterval(currentTypingInterval);
@@ -267,6 +336,44 @@ function updateChapterBar(){
     const d=document.getElementById('ch'+i);d.className='ch-dot';
     if(chapterComplete[i])d.classList.add('done');else if(i===currentChapter)d.classList.add('active');
   }
+  updateHearts();
+}
+
+/* ── Life hearts ───────────────────────────────────────────────────────────
+   The HUD's five hearts are quarter-fillable, so the row is a 20-step meter.
+   WHAT it measures is a design decision, not a technical one, and this one
+   function is where it is made: today it is how much of the course is behind
+   you, because the engine has no damage model — nothing can take a heart away.
+   Change this and the HUD changes meaning (lives spent on wrong answers,
+   stars earned, minigame score) without touching anything else. */
+function _heartQuarters(){
+  if(!TOTAL_CHAPTERS)return 20;
+  let done=0;for(let i=0;i<TOTAL_CHAPTERS;i++)if(chapterComplete[i])done++;
+  return Math.round((done/TOTAL_CHAPTERS)*20);
+}
+
+function updateHearts(){
+  const bar=document.getElementById('hp-hearts');
+  if(!bar||!window.PixelPack||!PixelPack.ready)return;
+  PixelPack.ready().then(function(available){
+    // No pack, no art: leave the chapter dots as the whole progress display.
+    if(!available){bar.classList.remove('on');return}
+    if(!bar.childElementCount){
+      for(let i=0;i<5;i++){
+        const h=document.createElement('div');h.className='hp-heart';
+        h.style.backgroundImage="url('"+(window.PIXELPACK_BASE||'/assets/pixelpack/')+"ui/Receptacle/Heart.png')";
+        bar.appendChild(h);
+      }
+    }
+    const q=_heartQuarters();
+    Array.prototype.forEach.call(bar.children,function(h,i){
+      const frame=Math.max(0,Math.min(4,q-i*4));   // 0 empty … 4 full
+      h.style.backgroundPositionX=(-frame*34)+'px';
+    });
+    bar.classList.add('on');
+    const dots=document.getElementById('chapter-bar');
+    if(dots)dots.classList.add('under-hearts');
+  });
 }
 
 function advanceDialog(){
@@ -335,7 +442,9 @@ function startGame(){
   Audio.ensureContext();Audio.playSFX('maximize');Audio.fadeOutBGM(600);
   setTimeout(()=>Audio.playBGM('dialog'),700);
   document.getElementById('title-screen').style.display='none';
-  gameState='playing';scriptIndex=0;_gameStartTime=Date.now();updateChapterBar();processScript();
+  gameState='playing';scriptIndex=0;_gameStartTime=Date.now();
+  document.getElementById('game-container').classList.add('playing');
+  updateChapterBar();processScript();
   _reportProgress('started');
   if(window.auth&&GAME.courseId&&GAME.chunkId){try{auth.recordGamePlay(GAME.courseId,GAME.chunkId)}catch(e){}}
   if(window.ahafrogAnalytics&&GAME.courseId&&GAME.chunkId){try{ahafrogAnalytics.trackGameStart(GAME.courseId,GAME.chunkId,{player:playerName})}catch(e){}}
@@ -459,10 +568,40 @@ function _attachSkipButton(){
   var r=document.getElementById('mg-report-fixed');
   if(r){r.textContent='报错';r.onclick=function(){_openReportModal()};r.style.display='inline-block';}
 }
+
+// A sim's subtitle is written by the generator as a three-beat spec --
+// [what you do] - [what you see] - [what you learn] -- and was being printed
+// to the learner verbatim, brackets and dashes included. The brackets are the
+// seam: split on them and the spec becomes the briefing it was always
+// describing. Anything that does not match that shape falls through as prose,
+// so a differently written subtitle still reads correctly.
+function _tutorialBeats(text){
+  var m=String(text||'').match(/[\[【][^\]】]+[\]】]/g);
+  if(!m||m.length<2)return null;
+  return m.map(function(x){return x.replace(/^[\[【]|[\]】]$/g,'').trim()})
+          .filter(function(x){return x.length});
+}
+// Generated titles carry a decorative emoji from the pipeline. It is the one
+// thing on this screen the pixel pack has no answer for, so it is dropped at
+// render time -- which also fixes every course already on disk.
+function _noEmoji(s){
+  var out=String(s==null?'':s).replace(/[‼-㊙️‍]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g,'').trim();
+  return out||String(s==null?'':s);
+}
+function _esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // -- Created by Yuqi Hang (github.com/yh2072) --
 function launchMiniGame(type){
   _lastMiniGameType=type;
-  const ov=document.getElementById('mini-game-overlay');ov.style.display='flex';ov.style.justifyContent='flex-start';ov.style.alignItems='flex-start';
+  // The overlay is a column flexbox, so justify- is its vertical axis and
+  // align- the horizontal one. Both were pinned to flex-start, which parked
+  // every generated minigame in the top-left corner and let wide ones run
+  // out under the audio buttons. flex-start was there to keep tall content
+  // reachable back when the overlay scrolled; the host scales content to fit
+  // now, so nothing can be clipped and it can simply be centred.
+  const ov=document.getElementById('mini-game-overlay');ov.style.display='flex';ov.style.justifyContent='center';ov.style.alignItems='center';
   _mgIsFullscreen=false;
 
   const mgData=GAME.minigames[type]||{};
@@ -470,11 +609,19 @@ function launchMiniGame(type){
   if(tutorialText&&!mgData._tutorialSeen){
     mgData._tutorialSeen=true;
     const th=GAME.theme||{};
-    ov.innerHTML='<div style="text-align:center;max-width:520px;margin:auto;padding:24px">'+
-      '<div style="font-size:28px;margin-bottom:12px">📖</div>'+
-      '<div class="mg-title" style="margin-bottom:12px">'+(mgData.title||type)+'</div>'+
-      '<div style="color:'+(th.text||'#e8d8f0')+';font-size:13px;line-height:1.8;margin-bottom:20px;text-align:left;background:rgba(255,255,255,0.03);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.06)">'+tutorialText+'</div>'+
-      '<button class="mg-btn" id="tut-start" style="pointer-events:auto;padding:12px 36px;font-size:14px;border-color:'+(th.accent||'#ff6a9a')+'">'+(_ui.start||'开始')+ ' →</button></div>';
+    var beats=_tutorialBeats(tutorialText);
+    // Numbered badges rather than written labels: the beats mean the same
+    // thing in every locale this ships in, and a number needs no translating.
+    var bodyHtml=beats
+      ? '<ol class="mg-beats">'+beats.map(function(b,i){
+          return '<li><span class="mg-beat-n">'+(i+1)+'</span><span class="mg-beat-t">'+_esc(b)+'</span></li>';
+        }).join('')+'</ol>'
+      : '<p class="mg-brief-prose">'+_esc(tutorialText)+'</p>';
+    ov.innerHTML='<div class="mg-brief">'+
+      '<h2 class="mg-brief-title">'+_esc(_noEmoji(mgData.title||type))+'</h2>'+
+      '<div class="mg-brief-body">'+bodyHtml+'</div>'+
+      '<button class="mg-cta" id="tut-start" type="button">'+_esc(_ui.start||'开始')+' →</button>'+
+      '</div>';
     ov.querySelector('#tut-start').addEventListener('click',function(){_buildMinigame(type,ov,mgData)});
   } else {
     _buildMinigame(type,ov,mgData);
@@ -488,13 +635,23 @@ function closeMiniGame(score){
     var skip=document.getElementById('mg-skip-fixed');if(skip)skip.style.display='none';
     var reportBtn=document.getElementById('mg-report-fixed');if(reportBtn)reportBtn.style.display='none';
     const ov=document.getElementById('mini-game-overlay');if(!ov){_minigameClosing=false;return;}
-    let finalScore=typeof score==='number'?Math.min(100,Math.max(0,score)):(typeof _mgScore==='number'?_mgScore:0);
-    _mgScore=0;
-    if(finalScore===0&&_lastMiniGameType&&String(_lastMiniGameType).startsWith('sim_')){
-      finalScore=70;
-    }
-    const stars=_getStars(finalScore);
-    const xpGained=Math.round(finalScore*0.4+stars*10);
+    // A minigame reports its result either by passing a score here or by
+    // setting _mgScore before closing. Anything else means it measured
+    // nothing -- which is not the same as measuring zero.
+    //
+    // This used to conflate the two: an unreported result arrived as 0, and
+    // any 0 from a sim was then rewritten to 70 so that a sim which forgot to
+    // score would not look like a failure. That rewrote real failures too, so
+    // closing a simulation without touching it paid out 70 points, two stars
+    // and 48 XP. An unmeasured score is now null and the result screen says so
+    // rather than inventing a number.
+    const reported = typeof score==='number' ? score
+                   : (typeof _mgScore==='number' ? _mgScore : null);
+    _mgScore=null;
+    const finalScore = reported===null ? null : Math.min(100,Math.max(0,reported));
+    const stars = finalScore===null ? null : _getStars(finalScore);
+    const xpGained = finalScore===null ? COMPLETION_XP
+                                       : Math.round(finalScore*0.4+stars*10);
     _showMiniGameResult(finalScore,xpGained,stars,ov);
   }catch(e){
     console.error('closeMiniGame error',e);
@@ -507,13 +664,21 @@ function _showMiniGameResult(finalScore,xpGained,stars,ov){
   const th=GAME.theme||{};
   const starColor=stars===3?(th.success||'#90e0a0'):stars===2?(th.accent||'#ff6a9a'):(th.muted||'#c080a0');
   ov.style.display='flex';ov.style.justifyContent='center';ov.style.alignItems='center';
-  ov.innerHTML='<div style="text-align:center;padding:32px 40px;max-width:400px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:20px;backdrop-filter:blur(12px)">'+
-    '<div style="font-size:40px;color:'+starColor+';letter-spacing:8px;margin-bottom:16px;animation:scorePop 0.5s">'+_starsText(stars)+'</div>'+
-    '<div style="color:'+(th.highlight||'#ffc0d0')+';font-size:28px;font-weight:bold;margin-bottom:4px">'+finalScore+'<span style="font-size:14px;margin-left:4px">'+(_ui.scoreUnit||'pts')+'</span></div>'+
-    '<div style="color:'+(th.success||'#90e0a0')+';font-size:15px;margin-bottom:24px">+'+xpGained+' '+(_ui.xpUnit||'XP')+'</div>'+
-    '<div style="display:flex;gap:12px;justify-content:center">'+
-    '<button class="mg-btn" id="mg-retry-btn" style="pointer-events:auto;font-size:13px;padding:10px 24px;border-color:'+(th.accent||'#ff6a9a')+';border-radius:14px">↺ '+(_ui.retry||'Retry')+'</button>'+
-    '<button class="mg-btn" id="mg-continue-btn" style="pointer-events:auto;font-size:13px;padding:10px 24px;border-color:'+(th.success||'#90e0a0')+';color:'+(th.success||'#90e0a0')+';border-radius:14px">'+(_ui.continue||'Continue →')+'</button>'+
+  // The same paper card as the briefing, so finishing a minigame lands in the
+  // furniture the game has been speaking through rather than a glass panel.
+  // An activity that measured nothing gets a completion mark, not a score:
+  // a fabricated number here is worse than no number, because the player
+  // cannot tell it apart from one they earned.
+  var scoredHtml = (typeof finalScore==='number')
+    ? '<div class="mg-stars" style="color:'+starColor+'">'+_starsText(stars)+'</div>'+
+      '<div class="mg-score-big">'+finalScore+'<span class="mg-score-unit">'+_esc(_ui.scoreUnit||'pts')+'</span></div>'
+    : '<div class="mg-done-mark">'+_esc(_ui.complete||'Complete')+'</div>';
+  ov.innerHTML='<div class="mg-brief mg-result">'+
+    scoredHtml+
+    '<div class="mg-xp">+'+xpGained+' '+_esc(_ui.xpUnit||'XP')+'</div>'+
+    '<div class="mg-actions">'+
+    '<button class="mg-cta mg-cta-ghost" id="mg-retry-btn" type="button">\u21ba '+_esc(_ui.retry||'Retry')+'</button>'+
+    '<button class="mg-cta" id="mg-continue-btn" type="button">'+_esc(_ui.continue||'Continue \u2192')+'</button>'+
     '</div></div>';
   Audio.playSFX('complete');
   document.getElementById('mg-retry-btn').onclick=function(){_retryMiniGame()};
@@ -521,7 +686,7 @@ function _showMiniGameResult(finalScore,xpGained,stars,ov){
 }
 
 function _retryMiniGame(){
-  _minigameClosing=false;_mgScore=0;
+  _minigameClosing=false;_mgScore=null;
   if(_lastMiniGameType){launchMiniGame(_lastMiniGameType)}
   else{_advanceMiniGame(0,0,0)}
 }

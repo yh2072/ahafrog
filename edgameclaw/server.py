@@ -91,7 +91,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -236,7 +236,6 @@ app.add_middleware(
 @app.on_event("startup")
 async def _startup():
     _maybe_start_embedded_node()
-    _prune_registry()
     if not API_KEY:
         print("[WARN] API_KEY not set. Add it to .env to enable generation.", flush=True)
     print(f"[EdGameClaw] Studio ready at http://localhost:{os.environ.get('PORT', 8000)}/", flush=True)
@@ -291,6 +290,9 @@ def _to_safe_log(line: str) -> str | None:
     return None
 
 
+from .generator import cancel as _cancel
+
+
 class JobManager:
     def __init__(self):
         self.jobs: dict[str, dict] = {}
@@ -301,7 +303,7 @@ class JobManager:
     def _save(self, jid: str) -> None:
         try:
             job = self.jobs[jid]
-            snapshot = {k: v for k, v in job.items() if k != "logs"}
+            snapshot = {k: v for k, v in job.items() if k not in ("logs", "cancel")}
             self._path(jid).write_text(json.dumps(snapshot), encoding="utf-8")
         except Exception:
             pass
@@ -323,6 +325,7 @@ class JobManager:
         self.jobs[jid] = {
             "id": jid, "course_id": course_id, "status": "running",
             "logs": [], "result": None, "error": None, "created_at": time.time(),
+            "cancel": _cancel.CancelToken(),
         }
         self._save(jid)
         return jid
@@ -331,10 +334,28 @@ class JobManager:
         if jid in self.jobs and msg.strip():
             self.jobs[jid]["logs"].append({"t": time.time(), "msg": msg.strip()})
 
-    def done(self, jid: str, result=None, error=None):
+    def cancel(self, jid: str) -> bool:
+        """Ask a running job to stop at its next model call.
+
+        Cooperative on purpose: the run writes a checkpoint after each step, so
+        stopping between steps leaves a course that resuming can pick up. See
+        generator/cancel.py.
+        """
+        job = self.jobs.get(jid)
+        if not job or job.get("status") != "running":
+            return False
+        token = job.get("cancel")
+        if token is None:
+            return False
+        token.request()
+        job["status"] = "stopping"
+        self._save(jid)
+        return True
+
+    def done(self, jid: str, result=None, error=None, status: str | None = None):
         if jid in self.jobs:
             self.jobs[jid].update({
-                "status": "failed" if error else "completed",
+                "status": status or ("failed" if error else "completed"),
                 "result": result, "error": str(error) if error else None,
             })
             self._save(jid)
@@ -394,6 +415,15 @@ sys.stderr = StderrDispatcher(job_mgr, _REAL_STDERR)
 
 
 # ── Safety helpers ───────────────────────────────────────────────────────────
+def _is_public_http_url(url: str) -> bool:
+    """Only plain http(s) URLs may be fetched on the user's behalf."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
 def _safe_course_id(s: str) -> str:
     if not s or ".." in s or "/" in s or "\\" in s:
         raise HTTPException(400, "Invalid course_id")
@@ -439,19 +469,29 @@ def _upsert_course(entry: dict):
         courses.insert(0, entry)
     _write_registry(courses)
 
-def _remove_course(course_id: str):
-    courses = [c for c in _read_registry() if c["id"] != course_id]
-    _write_registry(courses)
+def _forget_course(course_id: str) -> bool:
+    """Forget a course the user asked to delete. The only way a record leaves.
 
-def _prune_registry():
-    courses = _read_registry()
-    kept = [c for c in courses if (COURSES_DIR / c.get("id", "")).is_dir()]
-    if len(kept) < len(courses):
-        _write_registry(kept)
+    There is deliberately no automatic prune. A course folder that is absent and
+    a course folder the user deleted look identical from here, and the two call
+    for opposite responses: the first must keep the record (the folder may be on
+    an unmounted disk, a different EDGAMECLAW_HOME, or simply not cloned), the
+    second may drop it. Guessing wrong in the first direction destroys the only
+    record a course has, so the archive never shrinks on its own — a course with
+    no folder is listed as "missing" and the user removes it when they mean to.
+    """
+    before = _read_registry()
+    after = [c for c in before if c.get("id") != course_id]
+    if len(after) != len(before):
+        _write_registry(after)
+        return True
+    return False
+
 
 def _course_entry_from_manifest(course_id: str, manifest: dict) -> dict:
     meta = manifest.get("course", {})
     games = manifest.get("games", [])
+    built = len([g for g in games if g.get("status") == "success"])
     return {
         "id": course_id,
         "title": meta.get("title", course_id),
@@ -461,10 +501,62 @@ def _course_entry_from_manifest(course_id: str, manifest: dict) -> dict:
         "level": meta.get("level", ""),
         "estimated_time": meta.get("estimated_time", ""),
         "learning_objectives": meta.get("learning_objectives", []),
-        "total_lessons": len([g for g in games if g.get("status") == "success"]),
+        "total_lessons": built,
         "created_at": manifest.get("generated_at", ""),
         "tags": meta.get("tags", []),
+        # A manifest is written even when lessons failed, so its mere presence
+        # does not mean the course is playable. One course finished every
+        # expensive step, failed in assembly, and was still listed "ready" with
+        # a dead Play button and no way to resume.
+        "status": "ready" if built and built == len(games) else "incomplete",
+        "planned_lessons": len(games),
+        "failed_lessons": [
+            g.get("chunk_id") for g in games
+            if g.get("status") != "success" and g.get("chunk_id")
+        ],
     }
+
+def _partial_entry_from_dir(d: Path) -> dict | None:
+    """Describe a course that has started generating but has no manifest yet.
+
+    course-manifest.json is only written once the whole course finishes, so a
+    run that is still going — or that failed halfway — leaves a directory full
+    of real games that the Studio would otherwise never list. Those games are
+    the expensive part; they must stay reachable.
+    """
+    content = d / "_content.json"
+    if not content.exists():
+        return None
+    try:
+        data = json.loads(content.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+    meta = data.get("course") or {}
+    games_dir = d / "games"
+    built = (
+        len([g for g in games_dir.iterdir() if g.is_dir() and (g / "index.html").exists()])
+        if games_dir.is_dir() else 0
+    )
+    try:
+        created = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(d.stat().st_mtime))
+    except OSError:
+        created = ""
+    return {
+        "id": d.name,
+        "title": meta.get("title") or d.name,
+        "subtitle": meta.get("subtitle", ""),
+        "description": meta.get("description", ""),
+        "subject": meta.get("subject", ""),
+        "level": meta.get("level", ""),
+        "estimated_time": meta.get("estimated_time", ""),
+        "learning_objectives": meta.get("learning_objectives", []),
+        "total_lessons": built,
+        "planned_lessons": len(data.get("chunks") or []),
+        "created_at": created,
+        "tags": meta.get("tags", []),
+        "status": "incomplete",
+    }
+
 
 def _discover_courses_from_disk() -> list[dict]:
     result: list[dict] = []
@@ -474,13 +566,16 @@ def _discover_courses_from_disk() -> list[dict]:
         if not d.is_dir():
             continue
         mp = d / "course-manifest.json"
-        if not mp.exists():
-            continue
-        try:
-            m = json.loads(mp.read_text(encoding="utf-8"))
-            result.append(_course_entry_from_manifest(d.name, m))
-        except Exception:
-            pass
+        if mp.exists():
+            try:
+                m = json.loads(mp.read_text(encoding="utf-8"))
+                result.append(_course_entry_from_manifest(d.name, m))
+                continue
+            except Exception:
+                pass  # unreadable manifest: fall through to the partial reading
+        partial = _partial_entry_from_dir(d)
+        if partial:
+            result.append(partial)
     return result
 
 
@@ -501,15 +596,33 @@ def _registry_needs_sync(disk: list[dict], reg: list[dict]) -> bool:
 
 
 def scan_courses() -> list[dict]:
-    """List courses from disk manifests; keep courses.json in sync for external tools."""
-    _prune_registry()
+    """List every course this install knows about, from disk *and* the registry.
+
+    Disk wins where both have a course, because the manifest is authoritative
+    about how many games actually built. But a registry entry with no directory
+    is kept and flagged rather than dropped: returning only what is on disk is
+    what made courses silently vanish from "My Courses" after the folder moved.
+    """
     disk = _discover_courses_from_disk()
     reg = _read_registry()
-    if disk and _registry_needs_sync(disk, reg):
-        _write_registry(disk)
-    if disk:
-        return disk
-    return reg
+
+    merged = list(disk)
+    on_disk = {c["id"] for c in disk}
+    for entry in reg:
+        cid = entry.get("id")
+        if cid and cid not in on_disk:
+            merged.append({**entry, "status": "missing"})
+
+    # Newest first; fall back to the id, which carries a timestamp.
+    merged.sort(key=lambda c: (str(c.get("created_at") or ""), str(c.get("id") or "")), reverse=True)
+
+    # Keep courses.json current for external tools. The whole merged list is
+    # written, missing entries included: writing only what is on disk would
+    # delete those records on the very next listing — the loss this is here to
+    # prevent. Only an explicit delete removes a record.
+    if _registry_needs_sync(merged, reg):
+        _write_registry(merged)
+    return merged
 
 
 # ── Markdown parser ─────────────────────────────────────────────────────────
@@ -567,6 +680,68 @@ def parse_markdown(md: str) -> dict:
     return {"course": course, "chunks": chunks}
 
 
+def _structure_options(body: dict) -> "structure.StructureOptions":
+    """Read the lesson-size controls the Studio sends, with friendly errors."""
+    from .generator import structure
+
+    raw_max = body.get("max_lessons")
+    if raw_max in (None, "", "auto", 0, "0"):
+        raw_max = 0                      # 0 == decide from the document itself
+    options = structure.StructureOptions(
+        max_lessons=int(raw_max),
+        target_characters=int(
+            body.get("target_characters") or structure.DEFAULT_TARGET_CHARACTERS
+        ),
+        grouping=str(body.get("grouping") or "sections"),
+    )
+    try:
+        options.validate()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return options
+
+
+def parse_material(text: str, options=None, *, prefer_partitioner: bool = False) -> dict:
+    """Turn any learning material into a course outline.
+
+    Explicit structure wins: a document with `## ` sections is parsed exactly as
+    before, so existing courses keep splitting the same way. Only when that
+    yields no lesson at all — a pasted article, lecture notes, a PDF's body
+    text — does the inferred structure take over, which is what stops the
+    Studio from dead-ending on "At least one lesson section required".
+    """
+    from .generator import structure
+
+    # Structure recovered from a PDF only *looks* like hand-written Markdown.
+    # parse_markdown honours it literally: no lesson cap, no splitting of a huge
+    # section, no de-duplication — which turned one paper into 51 lessons, one of
+    # them 172k characters of un-bookmarked bibliography. Recovered structure
+    # goes to the partitioner, which caps, splits and de-duplicates.
+    parsed = None if prefer_partitioner else parse_markdown(text)
+    if parsed and parsed["chunks"]:
+        warnings = []
+        oversized = [
+            c["title"] for c in parsed["chunks"]
+            if len(c["content"]) > structure.DEFAULT_TARGET_CHARACTERS * 4
+        ]
+        if oversized:
+            warnings.append(
+                "Very long section(s): "
+                + ", ".join(oversized[:3])
+                + ". Each becomes one mini-game; consider splitting with more ## headings."
+            )
+        return {
+            **parsed, "structure": "headings", "warnings": warnings,
+            # Hand-written sections are the author's own call, so nothing is
+            # merged or auto-sized here.
+            "options": {"max_lessons": len(parsed["chunks"]), "auto_lessons": False},
+        }
+
+    return structure.autostructure(
+        text, options=options, themes=THEMES,
+    )
+
+
 # ── AI client (shared, persistent) ──────────────────────────────────────────
 import socket
 _orig_getaddrinfo = socket.getaddrinfo
@@ -602,18 +777,26 @@ async def _run_generation(
     api_key: str | None = None, base_url: str | None = None, model: str | None = None,
 ):
     old_err = _REAL_STDERR
-    course_id = job_mgr.get(jid)["course_id"]
+    _job = job_mgr.get(jid)
+    course_id = _job["course_id"]
     out_dir = COURSES_DIR / course_id
     _current_job_id_ctx.set(jid)
+    # Publish this run's stop flag so the model call can see it. create_task
+    # copied this context already, so everything the run awaits inherits it.
+    _cancel.current.set(_job.get("cancel") or _cancel.CancelToken())
 
     def _register_course():
         mp = out_dir / "course-manifest.json"
-        if not mp.exists():
-            return
         try:
-            manifest = json.loads(mp.read_text(encoding="utf-8"))
-            entry = _course_entry_from_manifest(course_id, manifest)
-            _upsert_course(entry)
+            if mp.exists():
+                manifest = json.loads(mp.read_text(encoding="utf-8"))
+                _upsert_course(_course_entry_from_manifest(course_id, manifest))
+                return
+            # No manifest: the run failed or was interrupted. Record what did get
+            # built anyway — those games cost API credits and must stay listed.
+            partial = _partial_entry_from_dir(out_dir)
+            if partial:
+                _upsert_course(partial)
         except Exception as exc:
             print(f"  [WARN] Failed to register course: {exc}", file=old_err)
 
@@ -623,7 +806,13 @@ async def _run_generation(
 
     try:
         from .generator import api as gen_api
+        from .generator.assembler import preflight
         from .generator.course_pipeline import generate_course_with_platform
+
+        # Fail before spending anything: assembly runs last, so a template the
+        # running build cannot render would otherwise surface only after every
+        # lesson has been generated and paid for.
+        preflight(str(ENGINE_DIR))
 
         gen_api._studio_usage_collector_ctx.set([])
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -646,6 +835,14 @@ async def _run_generation(
         _register_course()
         job_mgr.done(jid, result={"course_id": course_id})
         _rlog("✅ Done! Open the Studio to play your course.")
+
+    except _cancel.Cancelled:
+        # Not a failure. Whatever finished is on disk and checkpointed, so the
+        # course stays listed and "continue" resumes it without paying twice.
+        print(f"[{course_id}] ⏹ stopped by the user", file=old_err, flush=True)
+        _register_course()
+        job_mgr.done(jid, result={"course_id": course_id}, status="stopped")
+        _rlog("⏹ Stopped. Progress is saved — resume to continue from here.")
 
     except Exception as e:
         import traceback
@@ -683,7 +880,33 @@ async def play_page():
     player_path = ENGINE_DIR / "player.html"
     if not player_path.exists():
         raise HTTPException(404, "Player not found")
-    return HTMLResponse(player_path.read_text(encoding="utf-8"))
+    html = player_path.read_text(encoding="utf-8")
+
+    # The stage markup is shared with the game template -- see engine/
+    # shell-stage.html. The player used to keep its own copy, which fell eight
+    # elements behind (no dialogue panel, no portrait, no heart HUD), so the
+    # shared stylesheet was styling elements that did not exist here.
+    try:
+        from .generator.assembler import render_shell_stage, SHELL_STAGE_MARK
+        if SHELL_STAGE_MARK in html:
+            html = html.replace(SHELL_STAGE_MARK, render_shell_stage(str(ENGINE_DIR)))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[WARN] shell stage splice failed: {exc}", flush=True)
+
+    # Stamp the engine scripts with their own mtime.
+    #
+    # They are served by StaticFiles, which answers with an ETag, so a browser
+    # that has them keeps using them: editing the engine changed nothing on
+    # screen until someone thought to hard-refresh, and "I changed it and
+    # nothing happened" is a very expensive way to find that out. A URL that
+    # moves when the file moves cannot be stale.
+    for name in ("engine.js", "shell.js", "pixelpack.js"):
+        path = ENGINE_DIR / name
+        if not path.exists():
+            continue
+        html = html.replace(f"/engine/{name}", f"/engine/{name}?v={int(path.stat().st_mtime)}")
+
+    return HTMLResponse(html)
 
 
 # -- Created by Yuqi Hang (github.com/yh2072) --
@@ -712,21 +935,153 @@ async def get_manifest(course_id: str):
 async def delete_course(course_id: str):
     course_id = _safe_course_id(course_id)
     course_dir = COURSES_DIR / course_id
-    if not course_dir.exists():
+    had_dir = course_dir.exists()
+    if had_dir:
+        shutil.rmtree(course_dir)
+    # A "missing" course has a record but no folder; it must still be removable,
+    # otherwise the only way to clear it is to hand-edit courses.json.
+    forgotten = _forget_course(course_id)
+    if not had_dir and not forgotten:
         raise HTTPException(404, "Course not found")
-    shutil.rmtree(course_dir)
-    _remove_course(course_id)
     return {"ok": True}
 
 
 # ── Parse markdown ───────────────────────────────────────────────────────────
 
+@app.post("/api/provider/models")
+async def provider_models(body: dict):
+    """List the models an OpenAI-compatible endpoint actually offers.
+
+    This is what makes "any AI provider" true rather than a claim: instead of
+    shipping a hardcoded catalogue that goes stale, the Studio asks the endpoint
+    itself via the standard GET /models. Proxied through the server because a
+    browser call would be blocked by CORS on most providers, and so the key
+    never has to be exposed to a third-party origin from the page.
+    """
+    base_url = (body.get("base_url") or API_BASE_URL or "").strip().rstrip("/")
+    api_key = (body.get("api_key") or API_KEY or "").strip()
+    if not base_url:
+        raise HTTPException(400, "Set a base URL first.")
+    if not _is_public_http_url(base_url):
+        raise HTTPException(400, "Base URL must be an http(s) address.")
+
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        client = _get_ai_client()
+        resp = await client.get(f"{base_url}/models", headers=headers, timeout=20.0)
+    except Exception as exc:
+        raise HTTPException(502, f"Could not reach {base_url}: {exc}") from exc
+
+    if resp.status_code >= 400:
+        detail = (resp.text or "").strip()[:300]
+        raise HTTPException(
+            resp.status_code,
+            f"{base_url}/models returned HTTP {resp.status_code}"
+            + (f" — {detail}" if detail else ""),
+        )
+    try:
+        payload = resp.json()
+    except Exception as exc:
+        raise HTTPException(502, "That endpoint did not return JSON.") from exc
+
+    # OpenAI shape is {"data":[{"id":...}]}; some proxies return a bare list.
+    rows = payload.get("data") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        raise HTTPException(502, "That endpoint did not return a model list.")
+    ids = sorted({
+        str(r.get("id")) for r in rows
+        if isinstance(r, dict) and r.get("id")
+    })
+    return {"models": ids, "count": len(ids), "base_url": base_url}
+
+
+@app.get("/api/courses/{course_id}/content")
+async def get_course_content(course_id: str):
+    """The parsed material a course was generated from, plus what already built.
+
+    This is what makes resuming possible: generate_game writes `_checkpoint.json`
+    per course and reuses cached steps when the same course_id comes back, so a
+    run that died halfway only needs its original content to carry on from the
+    lesson it reached — no re-parsing, and no paying again for finished games.
+    """
+    course_id = _safe_course_id(course_id)
+    course_dir = COURSES_DIR / course_id
+    content_path = course_dir / "_content.json"
+    if not content_path.exists():
+        raise HTTPException(404, "No saved material for this course — it cannot be resumed.")
+    try:
+        content = json.loads(content_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise HTTPException(500, f"Saved material is unreadable: {exc}") from exc
+
+    games_dir = course_dir / "games"
+    built = sorted(
+        g.name for g in games_dir.iterdir()
+        if g.is_dir() and (g / "index.html").exists()
+    ) if games_dir.is_dir() else []
+
+    return {
+        "course_id": course_id,
+        "content": content,
+        "built": built,
+        "remaining": [
+            c.get("id") for c in (content.get("chunks") or [])
+            if c.get("id") not in built
+        ],
+    }
+
+
 @app.post("/api/parse-md-text")
 async def parse_md_text(body: dict):
     md = body.get("markdown", "")
     if not md.strip():
-        raise HTTPException(400, "Empty markdown")
-    return parse_markdown(md)
+        raise HTTPException(400, "Paste or upload some material first.")
+    return parse_material(md, _structure_options(body))
+
+
+@app.post("/api/upload-material")
+async def upload_material(
+    file: UploadFile = File(...),
+    max_lessons: int = Form(0),
+    target_characters: int = Form(0),
+    grouping: str = Form("sections"),
+):
+    """Read a PDF / Markdown / TXT upload and outline it. Local and free — no model call."""
+    from .generator.documents import DocumentError, extract
+
+    data = await file.read()
+    try:
+        document = extract(file.filename or "", data)
+    except DocumentError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+
+    options = _structure_options({
+        "max_lessons": max_lessons, "target_characters": target_characters,
+        "grouping": grouping,
+    })
+    result = parse_material(document["text"], options, prefer_partitioner=True)
+
+    # Best name first: the document's own /Title, then whatever structure the
+    # text suggested, then the filename. "NeuroAI for AI safety" beats
+    # "2411.18526v2", which is all the filename ever offers.
+    title = (document.get("title") or "").strip()
+    if not title and document["kind"] == "pdf":
+        title = (result["course"].get("title") or "").strip()
+    if not title:
+        title = re.sub(r"\.[^.]+$", "", file.filename or "").strip()
+    if title:
+        result["course"]["title"] = title[:120]
+
+    result["warnings"] = [*document["warnings"], *result.get("warnings", [])]
+    result["text"] = document["text"]
+    result["source"] = {
+        "name": file.filename, "kind": document["kind"],
+        "pages": document["pages"], "characters": len(document["text"]),
+        "bytes": len(data),
+    }
+    return result
 
 
 # -- Created by Yuqi Hang (github.com/yh2072) --
@@ -766,12 +1121,37 @@ async def generate(body: dict):
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
 
+@app.post("/api/jobs/{jid}/stop")
+async def stop_job(jid: str):
+    """Ask a running generation to stop at its next model call."""
+    job = job_mgr.get(jid)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.get("status") not in ("running", "stopping"):
+        return {"job_id": jid, "status": job.get("status"), "stopping": False}
+    job_mgr.cancel(jid)
+    job_mgr.log(jid, json.dumps({
+        "type": "info", "label": "status",
+        "value": "Stopping after the current step — progress is saved.",
+    }))
+    return {"job_id": jid, "status": "stopping", "stopping": True}
+
+
+def _job_public(job: dict) -> dict:
+    """The client's view of a job.
+
+    The record holds a live CancelToken, which has no JSON form -- returning it
+    raw would turn every status poll into a 500.
+    """
+    return {k: v for k, v in job.items() if k != "cancel"}
+
+
 @app.get("/api/jobs/{jid}")
 async def get_job(jid: str):
     j = job_mgr.get(jid)
     if not j:
         raise HTTPException(404, "Job not found")
-    return j
+    return _job_public(j)
 
 
 # ── AI chat proxy (BYOK) ─────────────────────────────────────────────────────
@@ -837,6 +1217,27 @@ async def get_game_package(course_id: str, chunk_id: str):
         pkg["config"] = {}
     pkg["config"]["courseId"] = course_id
     pkg["config"]["chunkId"] = chunk_id
+
+    # Re-render the stylesheet from the engine as it stands right now.
+    #
+    # game.pkg.json bakes a styleBlock at generation time, which froze every
+    # course's look at the moment it was made: changing the engine changed the
+    # standalone game files and left /play showing the old styling, with
+    # nothing to indicate why. The block is derived data -- theme plus
+    # template, no model output in it -- so there is no reason to keep the
+    # stored copy. Regenerating a course to pick up a CSS fix costs real API
+    # credits; this costs a template read.
+    #
+    # A failure here must never cost the user their game, so the baked block
+    # stays as the fallback.
+    try:
+        from .generator.assembler import get_rendered_style_block
+        theme = pkg.get("theme")
+        ui = pkg.get("ui")
+        if theme and ui:
+            pkg["styleBlock"] = get_rendered_style_block(str(ENGINE_DIR), theme, ui)
+    except Exception as exc:  # noqa: BLE001 - presentation only, never fatal
+        print(f"[WARN] styleBlock re-render failed for {course_id}/{chunk_id}: {exc}")
 
     # Inject next game URL
     games_dir = game_dir.parent

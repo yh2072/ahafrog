@@ -6,14 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Loading…</title>
-<style id="player-share-fallback">
-#share-modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);pointer-events:auto}
-#share-modal.visible{display:flex}
-#share-modal-inner{background:rgba(20,10,18,0.98);border:2px solid rgba(255,200,220,0.3);border-radius:16px;padding:20px 24px;max-width:360px;width:90%;box-shadow:0 0 30px rgba(255,100,150,0.2);pointer-events:auto}
-#share-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;background:rgba(20,60,40,0.9);border:1px solid #90e0a0;border-radius:10px;color:#90e0a0;font-size:12px;z-index:101;opacity:0;transition:opacity 0.3s;pointer-events:none}
-#share-toast.visible{opacity:1}
-#share-btn{position:fixed;top:12px;right:12px;z-index:50;cursor:pointer}
-</style>
 <style id="rotate-prompt-style">
 #_rp {
   display: none;
@@ -115,19 +107,8 @@
       if ((el = document.getElementById('name-label'))) el.textContent = ui.nameLabel || 'Name';
       if ((el = document.getElementById('player-name-input'))) el.placeholder = ui.namePlaceholder || 'Your name';
       if ((el = document.getElementById('start-btn'))) el.textContent = ui.startGame || 'Start';
-      if ((el = document.getElementById('share-copied-msg'))) el.setAttribute('data-msg', ui.shareCopied || 'Link copied!');
       if ((el = document.getElementById('dialog-next'))) el.textContent = ui.clickToContinue || 'Click to continue';
       if ((el = document.getElementById('back-to-course'))) el.href = apiBase + '/courses/' + encodeURIComponent(course) + '/';
-      var shareBtn = document.getElementById('share-btn');
-      if (shareBtn) shareBtn.textContent = '\u2398 ' + (ui.shareGame || 'Share');
-      var shareOpts = document.querySelectorAll('.share-opt, #share-modal h3');
-      shareOpts.forEach(function(o) {
-        var a = o.getAttribute('data-action');
-        var t = o.tagName === 'H3' ? ui.shareGame : (a === 'copy' ? ui.shareCopyLink : a === 'wechat' ? ui.shareWeChat : a === 'xiaohongshu' ? ui.shareXiaohongshu : a === 'linkedin' ? ui.shareLinkedIn : a === 'twitter' ? ui.shareTwitter : a === 'facebook' ? ui.shareFacebook : a === 'instagram' ? ui.shareInstagram : ui.shareGame);
-        if (t) o.setAttribute('title', t);
-        if (o.tagName === 'H3') o.textContent = t || 'Share';
-        else if (a === 'copy') o.textContent = '\u2398 ' + (ui.shareCopyLink || 'Copy link');
-      });
       if (theme.border && (el = document.getElementById('title-cover'))) el.style.border = '2px solid ' + theme.border;
       if (theme.glow && (el = document.getElementById('title-cover'))) el.style.boxShadow = '0 0 30px ' + theme.glow;
       if (theme.muted && (el = document.getElementById('start-hint'))) el.style.color = theme.muted;
@@ -198,65 +179,13 @@
     });
 })();
 </script>
+<script>(function(){try{var m=localStorage.getItem('edgc_game_appearance');if(m!=='light'&&m!=='dark')m='dark';document.documentElement.setAttribute('data-appearance',m);}catch(e){document.documentElement.setAttribute('data-appearance','dark');}})();</script>
+<script>window.PIXELPACK_BASE = "/assets/pixelpack/";</script>
 </head>
 <body>
 <canvas id="grain-noise" style="position:fixed;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;mix-blend-mode:soft-light;opacity:0.55" aria-hidden="true"></canvas>
 <a id="back-to-course" href="#">← Back</a>
-<button type="button" id="share-btn" onclick="window.openShareModal && window.openShareModal();">⎘ Share</button>
-<div id="share-modal" role="dialog">
-  <div id="share-modal-inner">
-    <h3>Share</h3>
-    <div class="share-options">
-      <button type="button" class="share-opt" data-action="copy">📋 Copy link</button>
-      <button type="button" class="share-opt" data-action="wechat">💬 WeChat</button>
-      <button type="button" class="share-opt" data-action="xiaohongshu">📕 Xiaohongshu</button>
-      <button type="button" class="share-opt" data-action="linkedin">in LinkedIn</button>
-      <button type="button" class="share-opt" data-action="twitter">𝕏 Twitter</button>
-      <button type="button" class="share-opt" data-action="facebook">f Facebook</button>
-      <button type="button" class="share-opt" data-action="instagram">📷 Instagram</button>
-    </div>
-    <button type="button" id="share-close">×</button>
-  </div>
-</div>
-<script>window.openShareModal=function(){var m=document.getElementById('share-modal');if(m)m.classList.add('visible');};</script>
-<div id="share-toast" aria-live="polite"></div>
-<span id="share-copied-msg" data-msg="Link copied!" aria-hidden="true"></span>
-<div id="game-container">
-<canvas id="main" width="128" height="96"></canvas>
-<canvas id="particles-canvas" width="768" height="576"></canvas>
-<div id="ui-overlay"><div id="chapter-bar"></div><div id="xp-bar"><div id="xp-track"><div id="xp-fill"></div></div><div id="xp-label"></div></div></div>
-<div id="chapter-transition"></div>
-<div id="level-up-overlay"></div>
-<div id="score-feedback"></div>
-<div id="audio-controls">
-  <button class="audio-btn" id="btn-bgm" onclick="Audio.toggleBGM()">&#9835;</button>
-  <button class="audio-btn" id="btn-sfx" onclick="Audio.toggleSFX()">&#9834;</button>
-</div>
-<div id="character-layer"></div>
-<div id="dialog-click-area"></div>
-<div id="dialog-box">
-  <div id="dialog-name"></div>
-  <div id="dialog-text"></div>
-  <div id="dialog-next">Click to continue</div>
-</div>
-<div id="title-screen">
-  <canvas id="title-cover" width="128" height="96" style="image-rendering:pixelated;width:512px;height:384px;border-radius:12px;margin-bottom:16px;display:none"></canvas>
-  <canvas id="title-logo" width="64" height="64" style="image-rendering:pixelated;width:192px;height:192px;margin-bottom:12px"></canvas>
-  <h1 id="title-text">Loading…</h1>
-  <div class="subtitle" id="subtitle-text"></div>
-  <div id="name-input-group">
-    <label id="name-label" for="player-name-input">Name</label>
-    <input type="text" id="player-name-input" placeholder="Your name" maxlength="12">
-  </div>
-  <button class="start-btn" id="start-btn" onclick="startGame()">Start</button>
-  <div id="start-hint" style="font-size:12px;margin-top:16px"></div>
-  <a href="javascript:void(0)" class="share-link" onclick="window.openShareModal && window.openShareModal(); return false;">⎘ Share</a>
-</div>
-<div id="mini-game-overlay"></div>
-<div id="game-watermark" style="position:absolute;bottom:6px;right:10px;z-index:12;pointer-events:none;font-size:10px;color:rgba(200,200,220,0.55);opacity:0.75;letter-spacing:0.5px">EdGameClaw · <a href="https://github.com/yh2072/edgameclaw" target="_blank" style="color:inherit;text-decoration:none;pointer-events:auto">github.com/yh2072</a></div>
-<button id="mg-report-fixed" style="display:none;position:absolute;bottom:16px;right:90px;z-index:200;pointer-events:auto;opacity:0.85;font-size:11px;padding:6px 12px;border-radius:8px;background:rgba(255,80,80,0.15);color:#f0c0c0;border:1px solid rgba(255,80,80,0.35);cursor:pointer;font-family:'PixelZH','Courier New',monospace;">报错</button>
-<button id="mg-skip-fixed" style="display:none;position:absolute;bottom:16px;right:16px;z-index:200;pointer-events:auto;opacity:0.85;font-size:11px;padding:6px 14px;border-radius:8px;background:rgba(255,100,150,0.15);color:#e8d8f0;border:1px solid rgba(255,100,150,0.3);border-radius:8px;cursor:pointer;font-family:'PixelZH','Courier New',monospace;">跳过 →</button>
-</div>
+<!-- @@SHELL_STAGE@@ -->
 <script>
 (function(){
   document.addEventListener('contextmenu',function(e){e.preventDefault()});
@@ -265,57 +194,6 @@
     if(e.key==='F12'){e.preventDefault()}
   });
   document.addEventListener('dragstart',function(e){e.preventDefault()});
-})();
-</script>
-<script>
-(function(){
-  var elMsg = document.getElementById('share-copied-msg');
-  var shareCopiedText = (elMsg && elMsg.getAttribute('data-msg')) || 'Link copied!';
-  var modal = document.getElementById('share-modal');
-  var toast = document.getElementById('share-toast');
-  var closeBtn = document.getElementById('share-close');
-  function showToast(msg) {
-    if (!toast) return;
-    toast.textContent = msg;
-    toast.classList.add('visible');
-    setTimeout(function(){ toast.classList.remove('visible'); }, 2000);
-  }
-  function getShareUrl() {
-    var course = (new URLSearchParams(location.search)).get('course') || (window.GAME && window.GAME.courseId) || '';
-    return (window.auth && typeof window.auth.getShareLinkUrl === 'function')
-      ? window.auth.getShareLinkUrl(course).catch(function(){ return window.location.href; })
-      : Promise.resolve(window.location.href);
-  }
-  function copyGameLink() {
-    getShareUrl().then(function(url) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(function(){ showToast(shareCopiedText); }).catch(function(){ fallbackCopy(url); });
-      } else { fallbackCopy(url); }
-    }).catch(function(){ fallbackCopy(window.location.href); });
-  }
-  function fallbackCopy(url) {
-    var ta = document.createElement('textarea'); ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); showToast(shareCopiedText); } catch(e) { showToast(url); }
-    document.body.removeChild(ta);
-  }
-  window.openShareModal = function() {
-    if (modal) modal.classList.add('visible');
-  };
-  function closeShareModal() {
-    if (modal) modal.classList.remove('visible');
-  }
-  if (closeBtn) closeBtn.addEventListener('click', closeShareModal);
-  if (modal) modal.addEventListener('click', function(e) { if (e.target === modal) closeShareModal(); });
-  var shareBtnEl = document.getElementById('share-btn');
-  if (shareBtnEl) shareBtnEl.addEventListener('click', function(){ if (window.openShareModal) window.openShareModal(); });
-  var shareOpts = document.querySelectorAll('.share-opt');
-  for (var i = 0; i < shareOpts.length; i++) {
-    shareOpts[i].addEventListener('click', function() {
-      var action = this.getAttribute('data-action');
-      if (action === 'copy') { copyGameLink(); return; }
-      copyGameLink();
-    });
-  }
 })();
 </script>
 <script>
@@ -343,13 +221,6 @@
     top: auto !important;
     left: auto !important;
     margin: 0 !important;
-  }
-  /* Share btn & back link: always accessible on mobile */
-  #share-btn {
-    position: fixed !important;
-    top: env(safe-area-inset-top, 8px) !important;
-    right: 12px !important;
-    z-index: 9999 !important;
   }
   #back-to-course {
     position: fixed !important;
@@ -408,5 +279,7 @@
   window.addEventListener('resize', function(){ updateScale(); updatePrompt(); });
 })();
 </script>
+<script src="/engine/pixelpack.js"></script>
+<script src="/engine/shell.js"></script>
 </body>
 </html>

@@ -11,6 +11,46 @@ generator/__pycache__/
 *.pyo
 .python-version
 
+# pi agent harness (.pi/extensions is source and IS tracked)
+.pi/logs/
+
+# Licensed pixel-art pack: usable locally and shippable inside a built game,
+# but the raw PNGs are not redistributed from this public repository.
+# Remove this line if your licence permits redistributing the source assets.
+# Purchased 16-bit asset pack: NOT redistributed.
+#
+# The owner's licence covers using the pack in this product, which is not the
+# same as republishing the artwork. So the pack stays out of the repository
+# except for the handful of UI frames the engine chrome actually draws with --
+# the dialogue plate, the heart HUD, two emotes, the arrow and the pixel face.
+# Character art, monsters, terrain and the other ~1850 files are never
+# published; PixelPack.ready()/has() report what is missing and the engine
+# falls back on its own drawing, so a clone runs correctly without them.
+#
+# git cannot look inside an ignored directory, so each level is re-opened
+# before its files can be excepted.
+assets/pixelpack/*
+!assets/pixelpack/catalog.json
+!assets/pixelpack/ui/
+assets/pixelpack/ui/*
+!assets/pixelpack/ui/Arrow.png
+!assets/pixelpack/ui/Dialog/
+assets/pixelpack/ui/Dialog/*
+!assets/pixelpack/ui/Dialog/DialogBox.png
+!assets/pixelpack/ui/Dialog/DialogBoxFaceset.png
+!assets/pixelpack/ui/Dialog/DialogueBoxSimple.png
+!assets/pixelpack/ui/Dialog/FacesetBox.png
+!assets/pixelpack/ui/Receptacle/
+assets/pixelpack/ui/Receptacle/*
+!assets/pixelpack/ui/Receptacle/Heart.png
+!assets/pixelpack/ui/Emote/
+assets/pixelpack/ui/Emote/*
+!assets/pixelpack/ui/Emote/emote5.png
+!assets/pixelpack/ui/Emote/emote12.png
+!assets/pixelpack/ui/Font/
+assets/pixelpack/ui/Font/*
+!assets/pixelpack/ui/Font/NormalFont.ttf
+
 # Node
 node/node_modules/
 edgameclaw/node/node_modules/
@@ -37,3 +77,6 @@ Thumbs.db
 *.log
 
 # Keep readme/demo.mp4 under 100 MB if committed (GitHub file limit)
+
+# Scratch preview artefact, regenerated on demand.
+tools/_preview.html

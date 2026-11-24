@@ -1400,15 +1400,15 @@ accent: {css['accent']}, highlight: {css['highlight']}, success: {css['success']
   <!-- header: portrait + title, ~60px tall -->
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
     <div id="mg-portrait"></div>
-    <div style="font:bold 15px PixelZH,monospace;color:{css['text']}">TITLE</div>
+    <div style="font:bold 15px monospace;color:{css['text']}">TITLE</div>
   </div>
   <!-- 1-line instruction, ~24px -->
-  <div style="font:12px PixelZH,monospace;color:{css['muted']};margin-bottom:4px">Drag elements to the correct position</div>
+  <div style="font:12px monospace;color:{css['muted']};margin-bottom:4px">Drag elements to the correct position</div>
   <!-- MAIN CANVAS — MUST be 680×420, fills remaining height -->
   <canvas id="sim-canvas" width="680" height="420"
     style="width:680px;height:420px;display:block;cursor:crosshair;border:1px solid {css['border']};border-radius:4px;pointer-events:auto"></canvas>
   <!-- status bar, ~28px -->
-  <div id="sim-status" style="font:12px PixelZH,monospace;color:{css['text']};margin-top:4px;text-align:center"></div>
+  <div id="sim-status" style="font:12px monospace;color:{css['text']};margin-top:4px;text-align:center"></div>
 </div>
 ```
 **Canvas 680×420 is mandatory** — it fills the screen. Never use max-width:320px or smaller.
@@ -1437,7 +1437,7 @@ function draw() {{
   zones.forEach(z => {{
     ctx.strokeStyle = '{css['border']}'; ctx.lineWidth = 2;
     ctx.strokeRect(z.x, z.y, z.w, z.h);
-    ctx.fillStyle = '{css['muted']}'; ctx.font = '12px PixelZH,monospace';
+    ctx.fillStyle = '{css['muted']}'; ctx.font = '12px monospace';
     ctx.fillText(z.label, z.x+8, z.y+20);
   }});
   // draw items
@@ -1445,7 +1445,7 @@ function draw() {{
     if (it.placed) return;
     ctx.fillStyle = it === dragging ? '{css['accent']}' : '{css['buttonBg']}';
     ctx.fillRect(it.x, it.y, it.w, it.h);
-    ctx.fillStyle = '{css['text']}'; ctx.font = '13px PixelZH,monospace';
+    ctx.fillStyle = '{css['text']}'; ctx.font = '13px monospace';
     ctx.fillText(it.label, it.x+8, it.y+22);
   }});
 }}
@@ -1489,7 +1489,7 @@ canvas.addEventListener('touchmove',  e=>{{e.preventDefault();canvas.dispatchEve
 canvas.addEventListener('touchend',   e=>{{e.preventDefault();canvas.dispatchEvent(new MouseEvent('mouseup',  {{clientX:(e.changedTouches[0]||{{}}).clientX||0,clientY:(e.changedTouches[0]||{{}}).clientY||0}}));}}, {{passive:false}});
 // showResults: always call this when game is complete — replaces ct with a continue screen
 function showResults() {{
-  ct.innerHTML = `<div style="text-align:center;padding:40px 20px;font-family:'PixelZH',monospace">
+  ct.innerHTML = `<div style="text-align:center;padding:40px 20px;font-family:monospace">
     <div style="color:{css['success']};font-size:28px;margin-bottom:8px">✓ Complete!</div>
     <div style="color:{css['muted']};font-size:13px;margin-bottom:24px">${{items.filter(it=>it.placed).length}}/${{items.length}} correct</div>
     <button id="done" class="mg-btn" style="pointer-events:auto;padding:12px 32px;font-size:14px;border-color:{css['success']};color:{css['success']}">Continue →</button>
@@ -1507,7 +1507,7 @@ function showResults() {{
 - Set `ct.innerHTML = html`, then `var btn = ct.querySelector('#id'); if (btn) btn.addEventListener('click', fn);` — NEVER use `ct.querySelector('#id').addEventListener` directly (throws if null)
 - All interactive elements need `pointer-events:auto`
 - NEVER use `100vw/100vh`, `document.getElementById()`, absolute positioning for UI panels
-- Font: `'PixelZH','Courier New',monospace`. Min font: 12px. NEVER dark grays (#333-#888)
+- Font: `'Courier New',monospace`. Min font: 12px. NEVER dark grays (#333-#888)
 - CANVAS TEXT CONTRAST: labels on colored shapes MUST be legible — draw a dark semi-transparent strip first: `g.fillStyle='rgba(0,0,0,0.55)'; g.fillRect(x, y+h-14, w, 14);` then draw white text on top. NEVER draw text in a color similar to the shape beneath it.
 - No semicolons inside template literal `${{}}` expressions
 - {get_prompt_lang_instruction(locale)}
@@ -1763,7 +1763,7 @@ registerMinigame('sim_N', function(ct, data) {{
       g.fillStyle = z.active ? 'rgba(100,255,100,0.2)' : 'rgba(255,255,255,0.05)';
       g.fillRect(z.x, z.y, z.w, z.h);
       g.strokeStyle = border; g.strokeRect(z.x, z.y, z.w, z.h);
-      g.fillStyle = muted; g.font = '11px "PixelZH",monospace';
+      g.fillStyle = muted; g.font = '11px monospace';
       g.fillText(z.label, z.x + 4, z.y + z.h/2 + 4);
     }});
     // Draw draggable items (colored shapes with short labels)
@@ -1776,7 +1776,7 @@ registerMinigame('sim_N', function(ct, data) {{
     particles.forEach(p => {{ /* animated sparkles */ }});
   }}
 
-  ct.innerHTML = `<div style="width:720px;max-width:100%;margin:0 auto;padding:6px 12px;box-sizing:border-box;font-family:'PixelZH',monospace">
+  ct.innerHTML = `<div style="width:720px;max-width:100%;margin:0 auto;padding:6px 12px;box-sizing:border-box;font-family:monospace">
     <p style="color:${{T.muted}};font-size:12px;margin:0 0 4px">Drag elements to the correct position</p>
     <canvas id="sim-canvas" width="680" height="420"
       style="width:680px;height:420px;display:block;border-radius:4px;pointer-events:auto;cursor:grab"></canvas>
@@ -1849,7 +1849,7 @@ The name MUST be exactly '{sim_name}'.
 - NEVER use `100vw/100vh`, `document.getElementById()`, inline onclick
 - Listeners: `var btn = ct.querySelector('#id'); if (btn) btn.addEventListener('click', fn);` — NEVER `ct.querySelector('#id').addEventListener(...)` directly (throws if element is null)
 - window.addEventListener and document.addEventListener are allowed, but queried elements must still be null-checked before binding
-- Font: `'PixelZH','Courier New',monospace`. Min size: 12px
+- Font: `'Courier New',monospace`. Min size: 12px
 - Text colors: theme.text for body, theme.highlight for titles. NEVER dark grays (#333-#888)
 - CANVAS TEXT CONTRAST: labels on colored shapes MUST be legible — draw a dark semi-transparent strip first: `g.fillStyle='rgba(0,0,0,0.55)'; g.fillRect(x, y+h-14, w, 14);` then draw white text. NEVER draw text in a color similar to the shape background.
 - No semicolons inside template literal `${{}}` expressions

@@ -198,7 +198,7 @@ COURSE_TEMPLATE = r"""<!DOCTYPE html>
 html{min-height:100dvh;-webkit-text-size-adjust:100%}
 body{
   background:{{T.bg}};color:{{T.text}};
-  font-family:'PixelZH','Courier New',monospace;
+  font-family:'Courier New',monospace;
   min-height:100vh;min-height:100dvh;overflow-x:hidden;
 }
 
@@ -399,10 +399,10 @@ body{
 <div id="af-course-gate" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,8,16,0.92);backdrop-filter:blur(20px);z-index:200;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
   <div style="max-width:400px;background:rgba(40,15,35,0.95);border:2px solid #5a3050;border-radius:20px;padding:36px 32px;box-shadow:0 0 40px rgba(255,120,180,0.15)">
     <div style="font-size:36px;margin-bottom:12px">🔒</div>
-    <h2 id="af-gate-title" style="color:#ffc0d0;font-size:20px;letter-spacing:2px;margin-bottom:10px;font-family:'PixelZH','Courier New',monospace"></h2>
-    <p id="af-gate-msg" style="color:#c080a0;font-size:13px;line-height:1.6;margin-bottom:24px;font-family:'PixelZH','Courier New',monospace"></p>
-    <button id="af-gate-btn" style="padding:12px 32px;background:rgba(136,206,2,0.2);color:#ffc0d0;border:2px solid #ff6a9a;border-radius:16px;font-family:'PixelZH','Courier New',monospace;font-size:13px;cursor:pointer;width:100%;transition:all 0.15s"></button>
-    <a href="/courses/" style="display:block;margin-top:14px;color:#8050a0;font-size:11px;font-family:'PixelZH','Courier New',monospace;text-decoration:none;letter-spacing:1px">← 返回课程列表</a>
+    <h2 id="af-gate-title" style="color:#ffc0d0;font-size:20px;letter-spacing:2px;margin-bottom:10px;font-family:'Courier New',monospace"></h2>
+    <p id="af-gate-msg" style="color:#c080a0;font-size:13px;line-height:1.6;margin-bottom:24px;font-family:'Courier New',monospace"></p>
+    <button id="af-gate-btn" style="padding:12px 32px;background:rgba(136,206,2,0.2);color:#ffc0d0;border:2px solid #ff6a9a;border-radius:16px;font-family:'Courier New',monospace;font-size:13px;cursor:pointer;width:100%;transition:all 0.15s"></button>
+    <a href="/courses/" style="display:block;margin-top:14px;color:#8050a0;font-size:11px;font-family:'Courier New',monospace;text-decoration:none;letter-spacing:1px">← 返回课程列表</a>
   </div>
 </div>
 

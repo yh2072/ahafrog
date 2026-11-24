@@ -14,7 +14,7 @@ body{
     color-mix(in srgb, var(--t-bg) 82%, var(--t-accent)) 0%,
     var(--t-bg) 62%,
     color-mix(in srgb, var(--t-bg) 78%, #000) 100%) !important;
-  font-family:'LXGW WenKai','PixelZH',ui-monospace,'SF Mono',Menlo,'Courier New',monospace;
+  font-family:'LXGW WenKai',ui-monospace,'SF Mono',Menlo,'Courier New',monospace;
   overflow:hidden;
 }
 
@@ -137,7 +137,7 @@ body{
 .mg-area canvas,#mini-game-overlay canvas{
   border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.35),0 0 0 1px var(--t-border);
 }
-#mini-game-overlay,#mini-game-overlay *{font-family:'LXGW WenKai','PixelZH',ui-monospace,'SF Mono',Menlo,'Courier New',monospace}
+#mini-game-overlay,#mini-game-overlay *{font-family:'LXGW WenKai',ui-monospace,'SF Mono',Menlo,'Courier New',monospace}
 
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 
@@ -303,7 +303,7 @@ body{
 #mini-game-overlay .mg-brief-title,
 #mini-game-overlay .mg-score-big, #mini-game-overlay .mg-score-unit,
 #mini-game-overlay .mg-cta{
-  font-family:'PixelLatin','PixelZH',system-ui,-apple-system,sans-serif !important;
+  font-family:'PixelLatin',system-ui,-apple-system,sans-serif !important;
 }
 
 /* The completion mark that stands in for a score when a minigame measured

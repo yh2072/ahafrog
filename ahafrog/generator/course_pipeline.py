@@ -192,14 +192,8 @@ _SCROLLBAR_CSS = """::-webkit-scrollbar{width:4px}
 
 
 def _patch_game_html(html_path: str, game_dir: str, output_dir: str, audio_base: str | None = None, next_game_url: str | None = None, course_id: str | None = None):
-    """Patch the generated game HTML for correct font, audio, asset paths, and layout."""
+    """Patch the generated game HTML for audio, asset paths and layout."""
     html = Path(html_path).read_text(encoding="utf-8")
-
-    font_filename = "ZhengQingKeNanBeiCiGongPuSongTi-2.ttf"
-    html = html.replace(
-        f"url('{font_filename}')",
-        f"url('/assets/{font_filename}')",
-    )
 
     extra_fields = '"audioBase": "/assets/audio/"'
     if course_id:

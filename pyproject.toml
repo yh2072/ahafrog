@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ahafrog"
-version = "0.2.0"
+version = "0.2.1"
 description = "Self-hosted AI studio: turn learning materials into playable browser mini-games"
 readme = "README_PYPI.md"
 requires-python = ">=3.10"
@@ -43,4 +43,9 @@ ahafrog = [
   "engine/**/*",
   "generator/sandbox_harness.js",
   "node/**/*",
+  # Sound and the UI frames the engine chrome draws with. Program resources,
+  # not user data: without them a pip install is a silent, fallback-font
+  # Studio. Only the redistributable subset lives here -- the purchased
+  # character/terrain art stays out of the repository entirely.
+  "assets/**/*",
 ]

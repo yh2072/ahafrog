@@ -1,0 +1,18 @@
+{
+  "_note": "Describes only what this package actually ships: the UI frames the engine chrome draws with. The purchased character/monster/terrain art is licensed for use but not for redistribution, so it is absent here and the lists below are empty on purpose -- PixelPack.has() then returns false and the engine draws its own art instead. Drop the full pack and its own catalog.json into ./assets/pixelpack/ to re-activate it locally; the /assets mount prefers that directory per file.",
+  "characters": [],
+  "monsters": [],
+  "items": {},
+  "emotes": 0,
+  "ui": [
+    "ui/Arrow.png",
+    "ui/Dialog/DialogBox.png",
+    "ui/Dialog/DialogBoxFaceset.png",
+    "ui/Dialog/DialogueBoxSimple.png",
+    "ui/Dialog/FacesetBox.png",
+    "ui/Emote/emote12.png",
+    "ui/Emote/emote5.png",
+    "ui/Font/NormalFont.ttf",
+    "ui/Receptacle/Heart.png"
+  ]
+}

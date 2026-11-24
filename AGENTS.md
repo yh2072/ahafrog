@@ -20,6 +20,8 @@ generation pipeline and the sandbox repair loop.
 | `ahafrog/engine/` | Runtime engine shipped into each generated course |
 | `ahafrog/node/server.js` | Engine state server, port 3100 |
 | `ahafrog/static/` | Studio and player HTML |
+| `ahafrog/assets/` | Bundled runtime assets: audio + the redistributable UI frames. **Ships in the wheel** |
+| `assets/` | The owner's local copy of the full purchased pack. **Gitignored, never published** |
 | `courses/` | **Generated output. Gitignored.** |
 | `courses.json` | Course registry the Studio reads (tracked) |
 
@@ -50,6 +52,17 @@ Studio at `/`, player at `/play`.
   `TIMEOUT`. Falls back to an `esprima` syntax check when Node is absent.
 - **Generated minigame contract:** `registerMinigame(name, fn)`, where the harness calls
   `fn(container, data)`.
+- **Assets are two layers.** `/assets` is mounted over *two* directories: the
+  working directory's `assets/` first, then `ahafrog/assets/` inside the package.
+  Starlette's `lookup_path()` skips a directory where the file is missing, so the
+  fallback is **per file**, not all-or-nothing. Audio and the UI frames are program
+  resources and live in the package, because `INSTALL_ROOT` is the *cwd* for a pip
+  install — putting them there was what made `pip install ahafrog` silent before.
+  `ahafrog/assets/pixelpack/catalog.json` is trimmed on purpose: it must exist (its
+  presence is what makes `PixelPack.ready()` resolve true and preload the UI frames)
+  but must list no characters/monsters, or `has()` claims ~240 sprites the package
+  does not contain. Drop the full pack plus its own catalogue in `./assets/pixelpack/`
+  to re-activate it locally.
 - **Checkpoints / resume.** Each course writes `_checkpoint.json`; re-running generation
   with the same `course_id` reuses cached steps. Do not "clean up" checkpoints.
 - **Concurrency.** `api.py` holds a module-level `asyncio.Semaphore(2)` over all LLM

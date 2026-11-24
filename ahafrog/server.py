@@ -115,16 +115,24 @@ def _install_root() -> Path:
 
 INSTALL_ROOT = _install_root()
 COURSES_DIR = INSTALL_ROOT / "courses"
-ASSETS_DIR = INSTALL_ROOT / "assets"
-AUDIO_DIR = ASSETS_DIR / "audio"
 JOBS_DIR = INSTALL_ROOT / "jobs"
 STATIC_DIR = PACKAGE_DIR / "static"
 ENGINE_DIR = PACKAGE_DIR / "engine"
 REGISTRY = INSTALL_ROOT / "courses.json"
 
+# Sound and the UI frames are program resources, not user data: they never
+# change and they have to survive a `pip install`, so they ship inside the
+# package. INSTALL_ROOT/assets stays as an optional override that the /assets
+# mount reads FIRST, per file -- a git checkout with the full purchased pack,
+# or a user dropping in their own art, still wins over the bundled copy.
+PACKAGE_ASSETS_DIR = PACKAGE_DIR / "assets"
+ASSETS_DIR = INSTALL_ROOT / "assets"
+AUDIO_DIR = (ASSETS_DIR if (ASSETS_DIR / "audio").is_dir() else PACKAGE_ASSETS_DIR) / "audio"
+
 COURSES_DIR.mkdir(parents=True, exist_ok=True)
-ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
+# Kept so the override layer always exists for the /assets mount.
+ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── AI Config ───────────────────────────────────────────────────────────────
 API_KEY      = (os.environ.get("API_KEY") or "").strip()
@@ -1315,8 +1323,19 @@ if ENGINE_DIR.exists():
 if COURSES_DIR.exists():
     app.mount("/courses", StaticFiles(directory=str(COURSES_DIR), html=True), name="courses")
 
-if ASSETS_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+# Layered on purpose: Starlette's lookup_path() walks every directory and
+# skips the ones where the file is missing, so this is a per-file fallback
+# (user override, then the bundled assets) and not an all-or-nothing switch.
+_asset_packages = [("ahafrog", "assets")] if PACKAGE_ASSETS_DIR.is_dir() else []
+# directory=None is valid and means "packages only", which keeps the bundled
+# assets serving even somewhere the override directory could not be created.
+_asset_dir = str(ASSETS_DIR) if ASSETS_DIR.is_dir() else None
+if _asset_dir or _asset_packages:
+    app.mount(
+        "/assets",
+        StaticFiles(directory=_asset_dir, packages=_asset_packages),
+        name="assets",
+    )
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

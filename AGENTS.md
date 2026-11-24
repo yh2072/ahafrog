@@ -1,4 +1,4 @@
-# EdGameClaw — notes for coding agents
+# AhaFrog — notes for coding agents
 
 Self-hosted AI studio that turns learning material into playable browser mini-games.
 Python 3.10+ / FastAPI backend, vanilla-JS canvas game engine, no frontend build step.
@@ -10,16 +10,16 @@ generation pipeline and the sandbox repair loop.
 
 | Path | What it is |
 | --- | --- |
-| `edgameclaw/server.py` | FastAPI app: routes, job manager, course registry, embedded Node spawn |
-| `edgameclaw/generator/api.py` | The **only** LLM call site: `generate(prompt, system_prompt, step=…)` |
-| `edgameclaw/generator/pipeline.py` | Single-game pipeline — the `_step_*` prompt chain |
-| `edgameclaw/generator/course_pipeline.py` | Multi-lesson course orchestration |
-| `edgameclaw/generator/prompts.py` | All prompt text |
-| `edgameclaw/generator/sandbox.py` | Validates generated JS; builds repair prompts |
-| `edgameclaw/generator/sandbox_harness.js` | Node sandbox that mocks DOM/canvas and *executes* generated game code |
-| `edgameclaw/engine/` | Runtime engine shipped into each generated course |
-| `edgameclaw/node/server.js` | Engine state server, port 3100 |
-| `edgameclaw/static/` | Studio and player HTML |
+| `ahafrog/server.py` | FastAPI app: routes, job manager, course registry, embedded Node spawn |
+| `ahafrog/generator/api.py` | The **only** LLM call site: `generate(prompt, system_prompt, step=…)` |
+| `ahafrog/generator/pipeline.py` | Single-game pipeline — the `_step_*` prompt chain |
+| `ahafrog/generator/course_pipeline.py` | Multi-lesson course orchestration |
+| `ahafrog/generator/prompts.py` | All prompt text |
+| `ahafrog/generator/sandbox.py` | Validates generated JS; builds repair prompts |
+| `ahafrog/generator/sandbox_harness.js` | Node sandbox that mocks DOM/canvas and *executes* generated game code |
+| `ahafrog/engine/` | Runtime engine shipped into each generated course |
+| `ahafrog/node/server.js` | Engine state server, port 3100 |
+| `ahafrog/static/` | Studio and player HTML |
 | `courses/` | **Generated output. Gitignored.** |
 | `courses.json` | Course registry the Studio reads (tracked) |
 
@@ -73,7 +73,7 @@ Studio at `/`, player at `/play`.
 
 ## The pi agent
 
-`.pi/extensions/edgameclaw/` adds EdGameClaw tools to the [pi](https://github.com/earendil-works/pi)
+`.pi/extensions/ahafrog/` adds AhaFrog tools to the [pi](https://github.com/earendil-works/pi)
 harness: Studio status, start the server, plan a course from markdown, generate/resume a
 course with live job progress, validate game JS in the real sandbox, list/delete courses.
 Also `/egc`. See [docs/pi-agent.md](docs/pi-agent.md).

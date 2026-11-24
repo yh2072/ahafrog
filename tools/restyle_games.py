@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # =============================================================================
-# EdGameClaw — AI Game-Based Learning Studio
+# AhaFrog — AI Game-Based Learning Studio
 # Created by Yuqi Hang (github.com/yh2072)
-# https://github.com/yh2072/edgameclaw
+# https://github.com/yh2072/ahafrog
 # =============================================================================
 """Apply the current engine presentation to games that were already generated.
 
@@ -36,7 +36,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "edgameclaw" / "generator"))
+sys.path.insert(0, str(REPO / "ahafrog" / "generator"))
 
 START = "/* EDGC-RESTYLE-START */"
 END = "/* EDGC-RESTYLE-END */"
@@ -77,7 +77,7 @@ def presentation_css(theme: dict) -> str:
     """Render the template's presentation block against one game's own theme."""
     import jinja2
 
-    template = (REPO / "edgameclaw" / "engine" / "template.html").read_text(encoding="utf-8")
+    template = (REPO / "ahafrog" / "engine" / "template.html").read_text(encoding="utf-8")
     marker = "/* ══ Presentation pass"
     if marker not in template:
         raise SystemExit("template.html has no presentation block to copy.")
@@ -220,7 +220,7 @@ def add_pixel_pack(html: str, theme_name: str = "") -> tuple[str, bool]:
     """
     if PACK_MARK in html:
         html = re.sub(r"<script>/\* " + PACK_MARK + r" \*/.*?</script>\n", "", html, flags=re.S)
-    runtime = REPO / "edgameclaw" / "engine" / "pixelpack.js"
+    runtime = REPO / "ahafrog" / "engine" / "pixelpack.js"
     if not runtime.exists() or "</body>" not in html:
         return html, False
 

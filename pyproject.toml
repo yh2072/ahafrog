@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "edgameclaw"
+name = "ahafrog"
 version = "0.1.1"
 description = "Self-hosted AI studio: turn learning materials into playable browser mini-games"
 readme = "README_PYPI.md"
@@ -23,18 +23,21 @@ dependencies = [
   "pypdf>=4.0.0",
 ]
 
+[project.scripts]
+ahafrog = "ahafrog.cli:main"
+
 [project.urls]
-Homepage = "https://github.com/yh2072/edgameclaw"
-Repository = "https://github.com/yh2072/edgameclaw"
-Documentation = "https://pypi.org/project/edgameclaw/"
+Homepage = "https://github.com/yh2072/ahafrog"
+Repository = "https://github.com/yh2072/ahafrog"
+Documentation = "https://pypi.org/project/ahafrog/"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["edgameclaw*"]
+include = ["ahafrog*"]
 
 [tool.setuptools.package-data]
 # Omit readme/**/*.gif — GIFs are large; PyPI wheel stays small. Full demos: GitHub repo readme/.
-edgameclaw = [
+ahafrog = [
   "static/**/*",
   "engine/**/*",
   "readme/**/*.png",

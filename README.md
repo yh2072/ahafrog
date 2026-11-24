@@ -28,7 +28,7 @@
 
 <a id="english"></a>
 
-# EdGameClaw — AI Game-Based Learning Studio
+#   AI Game-Based Learning Studio
 
 > **Turn any learning material into playable mini-games — in minutes.**
 

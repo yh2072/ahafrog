@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ahafrog"
-version = "0.1.1"
+version = "0.2.0"
 description = "Self-hosted AI studio: turn learning materials into playable browser mini-games"
 readme = "README_PYPI.md"
 requires-python = ">=3.10"
@@ -36,16 +36,11 @@ where = ["."]
 include = ["ahafrog*"]
 
 [tool.setuptools.package-data]
-# Omit readme/**/*.gif — GIFs are large; PyPI wheel stays small. Full demos: GitHub repo readme/.
+# No readme/** at all: those images exist for the GitHub page and never get
+# read at runtime. Shipping them made the wheel 17.8 MB for ~1 MB of app.
 ahafrog = [
   "static/**/*",
   "engine/**/*",
-  "readme/**/*.png",
-  "readme/**/*.jpg",
-  "readme/**/*.jpeg",
-  "readme/**/*.webp",
-  "readme/**/*.svg",
-  "readme/**/*.ico",
   "generator/sandbox_harness.js",
   "node/**/*",
 ]

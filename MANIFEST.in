@@ -1,4 +1,9 @@
-# Keep wheels/sdists small: do not ship GIF demos under readme/ (full assets stay on GitHub).
-# Wheel file list comes from [tool.setuptools.package-data] in pyproject.toml;
-# this file prunes GIFs from the source distribution.
-recursive-exclude ahafrog/readme *.gif
+# The wheel ships the application, not the GitHub page.
+#
+# readme/ holds the images README.md links to — demo GIFs, screenshots, the
+# mascot. None of them is read at runtime: the /readme mount is guarded by
+# readme_dir.exists() and no served page requests it any more. Shipping them
+# made the wheel 17.8 MB for roughly 1 MB of application.
+#
+# The wheel's file list otherwise comes from [tool.setuptools.package-data].
+recursive-exclude ahafrog/readme *

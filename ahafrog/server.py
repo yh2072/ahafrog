@@ -242,7 +242,6 @@ async def _startup():
     _maybe_start_embedded_node()
     if not API_KEY:
         print("[WARN] API_KEY not set. Add it to .env to enable generation.", flush=True)
-    print(f"[AhaFrog] Studio ready at http://localhost:{os.environ.get('PORT', 8000)}/", flush=True)
 
 @app.on_event("shutdown")
 async def _shutdown():

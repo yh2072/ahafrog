@@ -42,6 +42,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 .topbar-link.active{color:var(--greenL);border-color:rgba(136,206,2,0.25);background:var(--greenD)}
 .gh-link{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;border:1px solid var(--border2);color:var(--text2);text-decoration:none;font-size:11px;transition:all .2s}
 .gh-link:hover{border-color:var(--green);color:var(--greenL)}
+/* GitHub star badge. Decoration only: it stays hidden until a number
+   arrives, so a GitHub that is slow or blocked changes nothing on screen.
+   The [hidden] rule is not redundant -- a class that sets `display` beats
+   the user-agent's `[hidden]{display:none}`, so the attribute alone would
+   not actually hide it. */
+.gh-stars{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text2);font-size:10px;line-height:1.7;font-variant-numeric:tabular-nums}
+.gh-stars[hidden]{display:none}
+.gh-stars-ic{flex:none;opacity:.85}
 
 /* Lang switcher */
 .lang-sw{position:relative}
@@ -564,9 +572,10 @@ body::after{opacity:var(--scan)}
           <button class="lang-sw-opt" data-lang="de">Deutsch</button>
         </div>
       </div>
-      <a href="https://github.com/yuqihang/ahafrog" target="_blank" class="gh-link" id="ghLink">
+      <a href="https://github.com/yh2072/ahafrog" target="_blank" class="gh-link" id="ghLink">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         Star on GitHub
+        <span class="gh-stars" data-gh-stars hidden><svg class="gh-stars-ic" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 20.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 8.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></svg><span data-gh-stars-n></span></span>
       </a>
     </div>
   </div>
@@ -2059,6 +2068,28 @@ const Frog = (function () {
 })();
 
 document.addEventListener('DOMContentLoaded', function () { Frog.set('idle'); });
+</script>
+<script>
+/* Fills every [data-gh-stars] badge from the server's cached count.
+   The server proxies GitHub so this page only ever talks to its own origin,
+   and returns {"stars": null} when the count is unavailable -- in which case
+   nothing is shown and the button looks exactly as it did before. */
+(function () {
+  fetch('/api/github/stars')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || typeof d.stars !== 'number') return;
+      var n = d.stars >= 1000
+        ? (d.stars / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+        : String(d.stars);
+      document.querySelectorAll('[data-gh-stars]').forEach(function (el) {
+        var slot = el.querySelector('[data-gh-stars-n]');
+        if (slot) slot.textContent = n;
+        el.hidden = false;
+      });
+    })
+    .catch(function () { /* no badge, no noise */ });
+})();
 </script>
 </body>
 </html>

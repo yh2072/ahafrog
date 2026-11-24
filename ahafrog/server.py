@@ -1306,6 +1306,59 @@ async def play_next_proxy(request: Request, course_id: str, chunk_id: str):
 
 
 # ── Config info endpoint ──────────────────────────────────────────────────────
+# ── GitHub stars ─────────────────────────────────────────────────────────────
+GITHUB_REPO = "yh2072/ahafrog"
+
+# value, the moment it was stored, and how long that entry is good for.
+# A failure is cached too, briefly: without that, a GitHub that is slow or
+# blocked -- which it often is from China -- would cost every single page
+# load a fresh timeout.
+_stars_cache: dict[str, object] = {"value": None, "at": 0.0, "ttl": 0.0}
+_STARS_TTL_OK = 3600.0    # an hour; a star count is not urgent
+_STARS_TTL_FAIL = 300.0   # five minutes before trying a broken GitHub again
+
+
+@app.get("/api/github/stars")
+async def github_stars():
+    """Star count for the GitHub button. Never raises, never blocks for long.
+
+    Proxied here instead of fetched from the page for the same reason lottie
+    is vendored: a self-hosted Studio should talk to its own server and
+    nothing else. It also keeps the instance to one upstream call an hour,
+    where a per-visitor fetch would spend one of GitHub's sixty-per-hour
+    unauthenticated requests on every page load.
+
+    Returns {"stars": null} when the count is unavailable; the button then
+    shows no number at all rather than a zero or an error.
+    """
+    now = time.monotonic()
+    if now - float(_stars_cache["at"]) < float(_stars_cache["ttl"]):
+        return {"stars": _stars_cache["value"]}
+
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}",
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    # Generic: GitHub wants a User-Agent, and it is not a
+                    # place to put anything about whoever is running this.
+                    "User-Agent": "ahafrog",
+                },
+            )
+            resp.raise_for_status()
+            stars = int(resp.json().get("stargazers_count", 0))
+        _stars_cache.update(value=stars, at=now, ttl=_STARS_TTL_OK)
+        return {"stars": stars}
+    except Exception as exc:  # noqa: BLE001 -- a missing badge is not an error
+        print(f"[WARN] GitHub star count unavailable: {exc}", flush=True)
+        # Keep serving the last good number if there is one; it beats a
+        # badge that blinks out whenever the network hiccups.
+        _stars_cache["at"] = now
+        _stars_cache["ttl"] = _STARS_TTL_FAIL
+        return {"stars": _stars_cache["value"]}
+
+
 @app.get("/api/config")
 async def get_config():
     """Return public config info (no secrets)."""

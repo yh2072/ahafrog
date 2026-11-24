@@ -1,8 +1,8 @@
-# The EdGameClaw pi agent
+# The AhaFrog pi agent
 
 [pi](https://github.com/earendil-works/pi) is a minimal, extensible agent harness (a
 terminal coding agent, MIT, TypeScript/Node ≥ 22.19). This repo ships a pi *extension*
-that teaches it EdGameClaw: it can check and start the Studio, plan a course from
+that teaches it AhaFrog: it can check and start the Studio, plan a course from
 markdown, generate or resume one while streaming job progress, validate generated game
 JS in the real sandbox, and list or delete courses.
 
@@ -29,12 +29,12 @@ pi
 ```
 
 and run `/login` inside pi to connect a subscription or an API key. This is pi's own
-model access, separate from the `API_KEY` in `.env` that EdGameClaw's generator uses.
+model access, separate from the `API_KEY` in `.env` that AhaFrog's generator uses.
 
 ## Use it
 
 ```bash
-cd /path/to/edgameclaw && pi
+cd /path/to/ahafrog && pi
 ```
 
 Run pi from the repo (or any subdirectory). On first run pi asks you to **trust** the
@@ -56,14 +56,14 @@ Then just ask, e.g.:
 
 | Tool | Does |
 | --- | --- |
-| `edgameclaw_status` | Studio + engine-state server state, model, whether an API key is set, course count |
-| `edgameclaw_start_studio` | Runs `./start.sh` detached, waits until the server answers, logs to `.pi/logs/studio.log` |
-| `edgameclaw_courses` | Lists courses with ids, lesson counts and play URLs |
-| `edgameclaw_plan_course` | Markdown → the structured course plan, generating nothing |
-| `edgameclaw_generate_course` | Starts generation and streams job progress; reuse a `course_id` to resume |
-| `edgameclaw_job` | Re-attach to a running or finished generation job |
-| `edgameclaw_validate_js` | Executes game JS in `generator/sandbox_harness.js` — the pipeline's own validator |
-| `edgameclaw_delete_course` | Deletes a course, after confirmation |
+| `ahafrog_status` | Studio + engine-state server state, model, whether an API key is set, course count |
+| `ahafrog_start_studio` | Runs `./start.sh` detached, waits until the server answers, logs to `.pi/logs/studio.log` |
+| `ahafrog_courses` | Lists courses with ids, lesson counts and play URLs |
+| `ahafrog_plan_course` | Markdown → the structured course plan, generating nothing |
+| `ahafrog_generate_course` | Starts generation and streams job progress; reuse a `course_id` to resume |
+| `ahafrog_job` | Re-attach to a running or finished generation job |
+| `ahafrog_validate_js` | Executes game JS in `generator/sandbox_harness.js` — the pipeline's own validator |
+| `ahafrog_delete_course` | Deletes a course, after confirmation |
 
 The generation tools drive the Studio's HTTP API rather than importing the Python
 package, so the agent and the browser Studio share one orchestration path — the same job
@@ -81,7 +81,7 @@ Two things cost real money or are unrecoverable here, so the extension gates the
   first. With no UI to ask in (`pi --print`), it blocks instead.
 
 Tune that policy in `classifyCommand()` in
-[`.pi/extensions/edgameclaw/index.ts`](../.pi/extensions/edgameclaw/index.ts).
+[`.pi/extensions/ahafrog/index.ts`](../.pi/extensions/ahafrog/index.ts).
 
 Note pi's own caveat: it has no built-in permission system, and an extension can see
 prompts, tool calls, files and credentials. Treat `.pi/extensions/` as trusted code and
@@ -100,7 +100,7 @@ npm install --no-save @earendil-works/pi-coding-agent typescript @types/node
 ```
 
 ```bash
-node .pi/extensions/edgameclaw/test/smoke.mjs
+node .pi/extensions/ahafrog/test/smoke.mjs
 ```
 
 The smoke test loads `index.ts` through jiti (pi's loader) with a stub `ExtensionAPI`,

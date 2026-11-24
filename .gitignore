@@ -53,7 +53,7 @@ assets/pixelpack/ui/Font/*
 
 # Node
 node/node_modules/
-edgameclaw/node/node_modules/
+ahafrog/node/node_modules/
 node_modules/
 
 # PyPI / setuptools

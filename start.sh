@@ -1,6 +1,6 @@
 #!/bin/bash
 # Created by Yuqi Hang (github.com/yh2072)
-# EdGameClaw — Quick start script
+# AhaFrog — Quick start script
 
 set -e
 
@@ -16,7 +16,7 @@ BIND_HOST="${BIND_HOST:-127.0.0.1}"
 PORT="${PORT:-8000}"
 
 echo ""
-echo "  🐸 EdGameClaw — AI Game-Based Learning Studio"
+echo "  🐸 AhaFrog — AI Game-Based Learning Studio"
 echo "  ─────────────────────────────────────────────"
 echo "  Studio: http://$BIND_HOST:$PORT/"
 echo ""
@@ -28,10 +28,10 @@ if lsof -ti :3100 >/dev/null 2>&1; then
   sleep 0.5
 fi
 
-# Start Node engine state server in background (bundled under edgameclaw/node/)
-if [ -d "$ROOT_DIR/edgameclaw/node" ]; then
+# Start Node engine state server in background (bundled under ahafrog/node/)
+if [ -d "$ROOT_DIR/ahafrog/node" ]; then
   echo "  Starting Node engine server on port 3100..."
-  (cd "$ROOT_DIR/edgameclaw/node" && PORT=3100 node server.js) &
+  (cd "$ROOT_DIR/ahafrog/node" && PORT=3100 node server.js) &
   NODE_PID=$!
 fi
 
@@ -46,10 +46,10 @@ else
   exit 1
 fi
 
-# Start Python server (repo root on PYTHONPATH so `edgameclaw` package resolves)
+# Start Python server (repo root on PYTHONPATH so `ahafrog` package resolves)
 cd "$ROOT_DIR"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-"$UVICORN" edgameclaw.server:app --host "$BIND_HOST" --port "$PORT"
+"$UVICORN" ahafrog.server:app --host "$BIND_HOST" --port "$PORT"
 
 # Cleanup
 if [ -n "$NODE_PID" ]; then

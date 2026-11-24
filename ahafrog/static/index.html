@@ -55,6 +55,14 @@ nav{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--canvas)
 .btn-hero-primary{background:rgba(136,206,2,0.25);color:var(--greenL);border:1px solid rgba(136,206,2,0.5)}
 .btn-hero-primary:hover{background:rgba(136,206,2,0.4);transform:translateY(-1px)}
 .btn-hero-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+/* GitHub star badge. Decoration only: it stays hidden until a number
+   arrives, so a GitHub that is slow or blocked changes nothing on screen.
+   The [hidden] rule is not redundant -- a class that sets `display` beats
+   the user-agent's `[hidden]{display:none}`, so the attribute alone would
+   not actually hide it. */
+.gh-stars{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text2);font-size:10px;line-height:1.7;font-variant-numeric:tabular-nums}
+.gh-stars[hidden]{display:none}
+.gh-stars-ic{flex:none;opacity:.85}
 .btn-hero-ghost:hover{border-color:var(--green);color:var(--text);transform:translateY(-1px)}
 
 /* How it works */
@@ -351,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => applyTheme(currentTheme()));
       AhaFrog
     </div>
     <div class="nav-links">
-      <a href="https://github.com/yuqihang/ahafrog" target="_blank" class="nav-link"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 20.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 8.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></svg> GitHub</a>
+      <a href="https://github.com/yh2072/ahafrog" target="_blank" class="nav-link"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 20.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 8.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></svg> GitHub<span class="gh-stars" data-gh-stars hidden><svg class="gh-stars-ic" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 20.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 8.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></svg><span data-gh-stars-n></span></span></a>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Light / dark" aria-label="Toggle theme"><span id="themeIcon"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span><span>Dark</span></button>
         <a href="/studio" class="nav-link primary">Open Studio <svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
     </div>
@@ -365,9 +373,10 @@ document.addEventListener('DOMContentLoaded', () => applyTheme(currentTheme()));
   <p>AhaFrog converts your learning material into interactive AI-generated mini-games. Paste text, click generate, play immediately.</p>
   <div class="hero-actions">
     <a href="/studio" class="btn-hero btn-hero-primary"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg> Launch Studio</a>
-    <a href="https://github.com/yuqihang/ahafrog" target="_blank" class="btn-hero btn-hero-ghost">
+    <a href="https://github.com/yh2072/ahafrog" target="_blank" class="btn-hero btn-hero-ghost">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
       View on GitHub
+      <span class="gh-stars" data-gh-stars hidden><svg class="gh-stars-ic" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 20.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 8.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></svg><span data-gh-stars-n></span></span>
     </a>
   </div>
 </section>
@@ -449,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => applyTheme(currentTheme()));
   <p>Self-host in minutes with Docker or Python. Free and open source.</p>
   <div class="hero-actions">
     <a href="/studio" class="btn-hero btn-hero-primary"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg> Open Studio</a>
-    <a href="https://github.com/yuqihang/ahafrog#readme" target="_blank" class="btn-hero btn-hero-ghost"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Read Docs</a>
+    <a href="https://github.com/yh2072/ahafrog#readme" target="_blank" class="btn-hero btn-hero-ghost"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Read Docs</a>
   </div>
 </section>
 
@@ -464,5 +473,27 @@ document.addEventListener('DOMContentLoaded', () => applyTheme(currentTheme()));
   </div>
 </footer>
 
+<script>
+/* Fills every [data-gh-stars] badge from the server's cached count.
+   The server proxies GitHub so this page only ever talks to its own origin,
+   and returns {"stars": null} when the count is unavailable -- in which case
+   nothing is shown and the button looks exactly as it did before. */
+(function () {
+  fetch('/api/github/stars')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || typeof d.stars !== 'number') return;
+      var n = d.stars >= 1000
+        ? (d.stars / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+        : String(d.stars);
+      document.querySelectorAll('[data-gh-stars]').forEach(function (el) {
+        var slot = el.querySelector('[data-gh-stars-n]');
+        if (slot) slot.textContent = n;
+        el.hidden = false;
+      });
+    })
+    .catch(function () { /* no badge, no noise */ });
+})();
+</script>
 </body>
 </html>

@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/yh2072/ahafrog"><img src="https://img.shields.io/github/stars/yh2072/ahafrog?style=flat-square&label=stars&color=2da44e" alt="GitHub stars" /></a>
   <img src="https://img.shields.io/pypi/v/ahafrog.svg?style=flat-square&label=pypi" alt="PyPI" />
   <img src="https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square" alt="AGPL-3.0" />

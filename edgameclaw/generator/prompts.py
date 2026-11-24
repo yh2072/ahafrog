@@ -42,25 +42,151 @@ def _budget(max_lines: int, max_chars: int, notes: str = "") -> str:
     return base + (f" {notes}" if notes else "")
 
 
+
+#: What each theme is actually *about*, so the art has something concrete to
+#: draw. "Paint an iconic scene" produces generic blocks; "red lanterns, seals,
+#: paper cuts, temple gates" produces a place. Keys match THEMES in server.py.
+THEME_MOTIFS: dict[str, tuple[str, str]] = {
+    "pink-cute": ("cute, round, playful", "sweets, balloons, stars, plush toys, ribbons"),
+    "ocean-dream": ("blue-teal underwater or seaside", "waves, shells, coral, fish, lighthouse, bubbles"),
+    "forest-sage": ("deep green woodland", "mushrooms, ferns, owls, fallen logs, streams"),
+    "sunset-warm": ("orange-red evening glow", "sunset horizon, long silhouettes, campfire, birds"),
+    "galaxy-purple": ("purple-blue cosmos", "planets, stars, comets, rockets, nebulae"),
+    "candy-pop": ("saturated multi-colour pop", "candy, pinwheels, confetti, arcade signs"),
+    "retro-amber": ("amber monochrome retro-tech", "old terminals, cassette tapes, gears, desk lamps"),
+    "china-porcelain": ("blue and white on cream", "porcelain vases, cranes, cloud patterns, pavilions"),
+    "china-cinnabar": ("vermilion and gold", "red lanterns, carved seals, paper cuts, temple gates"),
+    "china-ink": ("black-grey wash, sparse, much empty space", "ink mountains, pines, bamboo, scrolls, brush strokes"),
+    "dunhuang": ("ochre, turquoise and earth red", "desert dunes, caves, flying apsaras, camels, mural patterns"),
+    "forbidden-red": ("imperial red and gold", "palace walls, golden roof tiles, stone lions, bridges"),
+    "china-landscape": ("green-blue mountains and water", "misty peaks, rivers, fishing boats, pagodas"),
+    "china-rouge": ("rouge pink and jade", "peonies, folding fans, silk, courtyards"),
+    "renaissance": ("warm earth tones, classical", "arches, frescoes, workshops, easels, columns"),
+    "baroque": ("dark and rich with gold highlights", "ornate frames, candles, heavy drapes, gold curls"),
+    "nordic": ("cool white, blue, muted red", "fjords, wooden cabins, pines, northern lights, runes"),
+    "victorian": ("brown, brass and fog", "gas lamps, clocks, brick streets, brass machines"),
+    "mediterranean": ("white and azure, sunny", "white houses, olive trees, sea, terraces"),
+    "fairy-tale": ("storybook, magical glow", "castles, mushroom houses, wands, dragons"),
+    "detective": ("dark blue-grey noir with one warm light", "magnifier, footprints, pinned notes, street lamps, night rain"),
+    "sci-fi": ("cyan and violet neon on dark", "stations, robots, holograms, circuits, lasers"),
+    "academy": ("navy, burgundy and parchment", "classrooms, books, blackboards, towers, crests"),
+    "myth": ("gold, stone and deep sky", "temples, relics, constellations, beasts, laurels"),
+}
+
+
+def theme_motifs(theme: str) -> str:
+    look, motifs = THEME_MOTIFS.get(theme, ("", ""))
+    if not look:
+        return ""
+    return f"- Theme look: {look}\n- Draw from these motifs, not generic scenery: {motifs}"
+
+
+# The generated simulations draw their own art.
+#
+# They used to be offered a licensed sprite pack, which is not distributed with
+# this repository -- so every clone got prompts describing an asset library it
+# did not have, and generated code whose art path could only ever fall back.
+# _art_direction_rules() below is the replacement: it teaches the model how to
+# draw pixel art that reads well (one light source, colour ramps, dithered
+# transitions, a single focal point) rather than where to fetch it.
+
+
 def _art_direction_rules(theme: str, story_anchor: str = "") -> str:
-    """Return shared art direction rules for cover and pixel art prompts."""
+    """Shared art direction for cover, background, sprite and icon prompts.
+
+    The earlier version asked for "striking" art without saying what makes
+    pixel art read well, so the model produced flat bands of colour. These are
+    the four things that actually decide whether 128x96 looks drawn or dumped:
+    one light source, colour ramps, dithered transitions, and a single focal
+    point with the highest contrast on the canvas.
+    """
     theme_data = get_theme(theme)
     palette_str = ", ".join(theme_data["pixel_palette"])
     story_line = f"- Story anchor: {story_anchor}" if story_anchor else ""
-    return f"""Color direction:
-- Use the theme palette as the foundation: {palette_str}
-- Build a richer palette with lighter/darker variants and a few related accent hues so the composition feels more vivid
-- Do not reuse the same accent color everywhere; give major subjects their own dominant color family
-- Keep strong contrast between foreground, midground, and background so the scene reads clearly
+    motif_line = theme_motifs(theme)
+    return f"""Palette and colour ramps:
+- Base palette: {palette_str}
+- Build a 4-step ramp per material: shadow -> base -> light -> highlight. Derive the
+  steps from the palette, and take every pixel you draw from one of those ramps.
+  Picking fresh colours ad hoc is what makes pixel art look muddy.
+- Shift hue as value changes (shadows cooler, highlights warmer), rather than only
+  darkening the same hue.
+- Give each major subject its own dominant ramp so they separate by colour, not
+  only by outline.
+
+Light:
+- Choose ONE light source, state it in a comment, and shade everything to it.
+  Every lit face points the same way; every shadow falls the opposite way.
+- Put a one-pixel rim light on the focal subject where it meets the darkest area.
+  That single line does more for depth than any amount of extra detail.
+
+Depth:
+- Three planes with falling contrast: foreground (full contrast, darkest darks),
+  midground (medium), background (low contrast, shifted toward the sky colour).
+  Distance washes colour out — do not draw a far mountain at full saturation.
+- Never let two planes share the same value, or the image flattens.
+
+Transitions — dither instead of banding:
+- Do not stack flat horizontal bars for a sky. Between two ramp steps lay a
+  2-pixel checker dither so the gradient breaks up.
+- A `for` loop costs ONE statement and can lay a whole dither band, so this fits
+  the command budget easily:
+    for (var x = 0; x < 128; x += 4) {{ gpx(g, x, 22, c2); gpx(g, x + 2, 23, c2); }}
+- Loops are allowed and encouraged anywhere a pattern repeats (stars, tiles,
+  windows, waves, foliage). Spend the saved commands on the focal point.
+
+Composition:
+- Exactly ONE focal point, off-centre (about a third in). It carries the highest
+  contrast and is the only place a fully saturated accent appears.
+- Everything else supports it: lead lines, framing shapes, darker surroundings.
+- The scene must read as shapes when squinted at. If the silhouette is unclear,
+  detail will not rescue it.
 
 Style and narrative coherence:
-- Keep the same visual language across icons, sprites, backgrounds, and cover art: line weight, shading approach, silhouette language, and detail density must match
-- Reuse motifs from worldSetting and narrativeTheme so every asset feels like one story world
-- Maintain the same emotional tone and visual motifs across the full asset set
+- One visual language across icons, sprites, backgrounds and cover: same line
+  weight, same shading approach, same detail density.
+- Reuse motifs from worldSetting and narrativeTheme so every asset is one world.
+{motif_line}
 {story_line}"""
 
 
 # All chapters use custom_simulation only; no template mechanics (matching, sorting, etc.).
+
+def _sim_palette_rules(theme: str) -> str:
+    """Colour rules for generated simulations.
+
+    The simulation prompts already received `theme`, but never showed the model
+    what it meant — so minigames were drawn in raw #ff0000 / #00ff00 / #0000ff
+    on black while the game around them was, say, rose and cream. The palette
+    was simply never in the prompt.
+    """
+    data = get_theme(theme)
+    css = data["css"]
+    palette = ", ".join(data["pixel_palette"])
+    return f"""
+
+### Colours — match the game, do not invent a palette
+
+This simulation is embedded in a "{theme}" themed game. Using raw red/green/blue
+on black makes it look like a different product bolted on.
+
+- Surfaces and text: background {css['bg']}, panels {css['containerBg']},
+  text {css['text']}, dim text {css['muted']}, headings {css['highlight']}
+- Accent (one, for the element that matters now): {css['accent']}
+- Borders {css['border']}, cards {css['cardBg']}, card text {css['cardText']}
+- States: good {css['success']} (fill {css['successBg']}), bad {css['accent']} (fill {css['errorBg']})
+- Wider art palette if you need more hues: {palette}
+
+Rules:
+- Take every colour from the list above. No #f00, #0f0, #00f, no pure #000 fill.
+- Distinguish series by giving each its own hue FROM the palette, and keep that
+  mapping stable across the whole simulation.
+- Colour must not be the only signal: pair it with shape, label or position, so
+  the simulation still reads for a colour-blind player.
+- One accent at a time. If everything is highlighted, nothing is."""
+
+
+
 def _build_mechanic_schemas(_accent: str, _secondary: str, used_mechanics: list[str] | None = None) -> str:
     """Only custom_simulation is used; no template mechanic data. Return short note for minigame_data prompt."""
     if used_mechanics and any(m and m != "custom_simulation" for m in used_mechanics):
@@ -1263,7 +1389,7 @@ accent: {css['accent']}, highlight: {css['highlight']}, success: {css['success']
 ## APIs
 - `Audio.playSFX('click'|'correct'|'wrong'|'complete'|'select')`
 - `spawnParticles(x, y, 'sparkle'|'confetti', count)`
-- `closeMiniGame()` — call when finished. Set `_mgScore` before calling.
+- `closeMiniGame()` — call when finished. Set `_mgScore` (0–100, from the player's actual performance) before calling; an unset score shows as a plain completion mark, not a number.
 - `makePortrait(name)` — returns canvas; use `.outerHTML` in template literals
 - `GAME.theme` — color object; use `const T = GAME.theme || {{}};`
 
@@ -1300,7 +1426,7 @@ const zones = [
   {{id:0, label:'Zone 1', x:400, y:80, w:140, h:60, accepts:0}},
   // ... match items
 ];
-let dragging = null, dragOx = 0, dragOy = 0;
+let dragging = null, dragOx = 0, dragOy = 0, mistakes = 0;
 
 function draw() {{
   const ctx = canvas.getContext('2d');
@@ -1348,8 +1474,13 @@ canvas.addEventListener('mouseup', e => {{
     dragging.placed = true; dragging.x = hit.x+25; dragging.y = hit.y+12;
     Audio.playSFX('correct'); spawnParticles(hit.x+70, hit.y+30, 'sparkle', 6);
     // check complete
-    if (items.every(it => it.placed)) {{ _mgScore = 100; Audio.playSFX('complete'); spawnParticles(340, 210, 'confetti', 30); showResults(); }}
-  }} else {{ Audio.playSFX('wrong'); }}
+    if (items.every(it => it.placed)) {{
+      // Score what the player did, never just that they finished. Hardcoding
+      // a perfect score here makes every playthrough look identical.
+      _mgScore = Math.max(0, Math.round(100 - mistakes * 15));
+      Audio.playSFX('complete'); spawnParticles(340, 210, 'confetti', 30); showResults();
+    }}
+  }} else {{ mistakes++; Audio.playSFX('wrong'); }}
   dragging = null; draw();
 }});
 // Mirror touch events
@@ -1405,6 +1536,13 @@ function showResults() {{
 
 Output ONLY JavaScript code. No markdown. No explanation."""
 
+    user += _sim_palette_rules(theme)
+    # Replaces the sprite-pack rules that used to sit here: the simulation
+    # draws its own art, so it gets the drawing technique instead of a
+    # catalogue of assets this repository does not ship.
+    user += _art_direction_rules(theme, "Everything in this simulation is drawn "
+        "on canvas by your own code. Nothing is loaded from disk, so the shapes "
+        "you draw ARE the artwork.")
     return system, user
 
 
@@ -1695,7 +1833,7 @@ The name MUST be exactly '{sim_name}'.
 ## APIs
 - `Audio.playSFX('click'|'correct'|'wrong'|'complete'|'select')`
 - `spawnParticles(x, y, 'sparkle'|'confetti', count)`
-- `closeMiniGame()` — call when finished. XP and stars are based on performance: set global `_mgScore` (0–100) before calling, e.g. `_mgScore = Math.round((score / maxScore) * 100); closeMiniGame();` so the engine can award XP.
+- `closeMiniGame()` — call when finished. **You must set global `_mgScore` (0–100) before calling it**, computed from how well the player actually did, e.g. `_mgScore = Math.round((score / maxScore) * 100)`. Do not hardcode a value and do not award a score for merely finishing. If you set nothing, the result screen shows a completion mark with no score or stars — the engine will not invent a number.
 - `makePortrait(name)` — returns canvas element; use `.outerHTML` in template literals
 - `GAME.theme` — color object, use safe access with defaults
 
@@ -1736,6 +1874,13 @@ The name MUST be exactly '{sim_name}'.
 
 Output ONLY JavaScript code. No markdown fences. No explanation."""
 
+    user += _sim_palette_rules(theme)
+    # Replaces the sprite-pack rules that used to sit here: the simulation
+    # draws its own art, so it gets the drawing technique instead of a
+    # catalogue of assets this repository does not ship.
+    user += _art_direction_rules(theme, "Everything in this simulation is drawn "
+        "on canvas by your own code. Nothing is loaded from disk, so the shapes "
+        "you draw ARE the artwork.")
     return system, user
 
 
@@ -1874,6 +2019,13 @@ def sim_refine_prompt(
 
 Output complete, improved registerMinigame('{sim_name}', function(ct, data) {{ ... }}); code."""
 
+    user += _sim_palette_rules(theme)
+    # Replaces the sprite-pack rules that used to sit here: the simulation
+    # draws its own art, so it gets the drawing technique instead of a
+    # catalogue of assets this repository does not ship.
+    user += _art_direction_rules(theme, "Everything in this simulation is drawn "
+        "on canvas by your own code. Nothing is loaded from disk, so the shapes "
+        "you draw ARE the artwork.")
     return system, user
 
 
@@ -1931,6 +2083,13 @@ function drawNeuron(ctx, x, y, size, color) {{
 
 Output ONLY the function declarations (no registerMinigame wrapper)."""
 
+    user += _sim_palette_rules(theme)
+    # Replaces the sprite-pack rules that used to sit here: the simulation
+    # draws its own art, so it gets the drawing technique instead of a
+    # catalogue of assets this repository does not ship.
+    user += _art_direction_rules(theme, "Everything in this simulation is drawn "
+        "on canvas by your own code. Nothing is loaded from disk, so the shapes "
+        "you draw ARE the artwork.")
     return system, user
 
 

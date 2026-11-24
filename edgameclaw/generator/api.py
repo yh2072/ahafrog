@@ -12,6 +12,8 @@ import time
 import httpx
 from openai import AsyncOpenAI, RateLimitError, APIConnectionError, APIStatusError
 
+from . import cancel as _cancel
+
 # Default to OpenRouter; API_BASE_URL / MODEL (.env) are aliases of STUDIO_* (see server._unify_ai_env_aliases).
 _OPENROUTER_BASE = (
     os.environ.get("STUDIO_AI_BASE_URL")
@@ -122,6 +124,11 @@ async def generate(
 ) -> str:
     """Call the AI API with streaming, concurrency control, retry logic.
     When step= is set, model is taken from STUDIO_MODEL_<STEP> env (same api_key/base_url)."""
+    # The one choke point every generation step passes through, so one check
+    # here stops the whole chain -- and it stops it between steps, where the
+    # checkpoint on disk is consistent and the run can be resumed.
+    _cancel.check()
+
     if step:
         model = get_model_for_step(step)
     elif model is None:

@@ -1,0 +1,54 @@
+<!-- Shared stage markup -- spliced into BOTH template.html (at assembly)
+     and player.html (per request, by the /play route). Edit here, never
+     in a shell: a shell's own copy is what fell eight elements behind. -->
+<div id="game-container">
+<canvas id="main" width="128" height="96"></canvas>
+<canvas id="particles-canvas" width="768" height="576"></canvas>
+<div id="ui-overlay">
+  <div id="chapter-bar"></div>
+  <div id="xp-bar"><div id="xp-track"><div id="xp-fill"></div></div><div id="xp-label"></div></div>
+</div>
+<div id="chapter-transition"></div>
+<div id="level-up-overlay"></div>
+<div id="score-feedback"></div>
+<div id="hp-hearts" aria-hidden="true"></div>
+<div id="audio-controls">
+  <button class="audio-btn" id="btn-bgm" onclick="Audio.toggleBGM()" title="{{ ui.musicTitle }}">&#9835;</button>
+  <button class="audio-btn" id="btn-sfx" onclick="Audio.toggleSFX()" title="{{ ui.sfxTitle }}">&#9834;</button>
+  <button type="button" id="fullscreen-btn" class="audio-btn" onclick="toggleFullscreen()" aria-label="{{ ui.fullscreen | default('Fullscreen') }}">&#9974;</button>
+<button type="button" id="settings-btn" class="audio-btn" onclick="toggleGameSettings()" aria-label="{{ ui.settings | default('Settings') }}">&#9881;</button>
+</div>
+<div id="character-layer"></div>
+<div id="dialog-click-area"></div>
+<div id="dialog-box">
+  <div id="dialog-side">
+    <div id="dialog-name"></div>
+    <div id="dialog-portrait"><div id="dialog-portrait-inner"></div></div>
+  </div>
+  <div id="dialog-panel">
+    <div id="dialog-text"></div>
+    <div id="dialog-next" title="{{ ui.clickToContinue }}" aria-label="{{ ui.clickToContinue }}"></div>
+  </div>
+</div>
+<div id="title-screen">
+  <canvas id="title-cover" width="128" height="96" style="image-rendering:pixelated;width:512px;height:384px;border-radius:12px;border:2px solid var(--t-border);box-shadow:0 0 30px var(--t-glow);margin-bottom:16px;display:none"></canvas>
+  <canvas id="title-logo" width="64" height="64" style="image-rendering:pixelated;width:192px;height:192px;margin-bottom:12px"></canvas>
+  <h1 id="title-text">{{ title_display }}</h1>
+  <div class="subtitle" id="subtitle-text">{{ subtitle }}</div>
+  <div id="name-input-group">
+    <label id="name-label" for="player-name-input">{{ ui.nameLabel }}</label>
+    <input type="text" id="player-name-input" placeholder="{{ ui.namePlaceholder }}" maxlength="12">
+  </div>
+  <button class="start-btn" id="start-btn" onclick="startGame()">{{ ui.startGame }}</button>
+  <div id="start-hint" style="color:var(--t-muted);font-size:12px;margin-top:16px">{{ ui.startHint }} · {{ total_chapters }} {{ ui.chapters }}</div>
+  <div id="lang-switcher" class="lang-switcher" style="margin-top:14px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center">
+    {% for code, name in locale_names.items() %}
+    <button type="button" class="lang-opt" data-lang="{{ code }}" style="background:transparent;border:1px solid var(--t-border);border-radius:8px;padding:4px 10px;color:var(--t-muted);font-size:11px;cursor:pointer;font-family:inherit" title="{{ name }}">{{ name }}</button>
+    {% endfor %}
+  </div>
+</div>
+<div id="mini-game-overlay"></div>
+<button id="mg-report-fixed" class="mg-btn" style="display:none;position:absolute;bottom:16px;right:90px;z-index:200;pointer-events:auto;opacity:0.85;font-size:11px;padding:6px 12px;border-radius:8px;background:rgba(255,80,80,0.15);color:#f0c0c0;border:1px solid rgba(255,80,80,0.35);">报错</button>
+<button id="mg-skip-fixed" class="mg-btn" style="display:none;position:absolute;bottom:16px;right:16px;z-index:200;pointer-events:auto;opacity:0.85;font-size:11px;padding:6px 14px;border-radius:8px;">跳过 →</button>
+</div>
+<div id="game-ai-disclaimer" style="text-align:center;margin-top:8px;font-size:10px;color:var(--t-muted);opacity:0.9">{{ ui.aiDisclaimer }}</div>

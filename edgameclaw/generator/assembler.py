@@ -868,6 +868,19 @@ def get_theme_css(name: str) -> dict:
     return get_theme(name)["css"]
 
 
+def get_theme_css_light(name: str) -> dict:
+    """The light counterpart of a theme, derived and contrast-checked.
+
+    Themes are authored dark. Rather than keeping 24 hand-written light
+    palettes in step with them, each is derived from its dark original by the
+    role every colour plays, then every text/background pair is verified
+    against WCAG. See generator/theme_light.py.
+    """
+    from .theme_light import to_light
+
+    return to_light(get_theme_css(name))
+
+
 def get_theme_spec(name: str) -> str:
     """Return a prompt-friendly text description of a theme for LLM consumption."""
     t = get_theme(name)
@@ -902,12 +915,106 @@ def list_themes() -> list[dict]:
     ]
 
 
-def get_rendered_style_block(template_dir: str, theme: dict, ui: dict) -> str:
+SHELL_CSS_MARK = "/* @@SHELL_CSS@@ */"
+SHELL_JS_MARK = "/* @@SHELL_JS@@ */"
+SHELL_STAGE_MARK = "<!-- @@SHELL_STAGE@@ -->"
+
+
+def _inline_shell(template_html: str, engine_dir: Path) -> str:
+    """Splice engine/shell.css and engine/shell.js into the template markers.
+
+    The engine ships two shells -- template.html, assembled into each standalone
+    game, and player.html, which /play serves. They used to carry their own copy
+    of the presentation layer, so every styling change landed in one and silently
+    left the other behind. The shared layer now lives in shell.css / shell.js:
+    the template splices it in here, the player links the same two files, and
+    neither can drift from the other again.
+
+    Missing files are not fatal -- the marker is a CSS/JS comment, so a game
+    still assembles and simply looks unstyled, which is far better than failing
+    a run that has already been paid for.
+    """
+    for mark, name in ((SHELL_CSS_MARK, "shell.css"), (SHELL_JS_MARK, "shell.js"),
+                       (SHELL_STAGE_MARK, "shell-stage.html")):
+        if mark not in template_html:
+            continue
+        path = Path(engine_dir) / name
+        if not path.exists():
+            continue
+        template_html = template_html.replace(mark, _read_file(path))
+    return template_html
+
+
+
+def render_shell_stage(engine_dir: str, locale: str = "en") -> str:
+    """Render the shared stage markup on its own, for the player.
+
+    The player has no course in hand when the page is served -- it fetches the
+    package afterwards and fills every string through applyGameUi(). So the
+    strings rendered here only cover the instant before that lands; what
+    matters is that the ELEMENTS exist, because the shared stylesheet styles
+    them and the engine reaches for them by id.
+    """
+    import jinja2
+
+    from .i18n import get_ui_strings, LOCALE_NAMES
+
+    raw = _read_file(Path(engine_dir) / "shell-stage.html")
+    return jinja2.Environment(autoescape=False).from_string(raw).render(
+        ui=get_ui_strings(locale), locale_names=LOCALE_NAMES,
+        title_display="", subtitle="", total_chapters="",
+    )
+
+
+def preflight(template_dir: str, theme_name: str = DEFAULT_THEME) -> None:
+    """Render the template with placeholder data before any model call.
+
+    The template is read from disk on every render, but this module is loaded
+    once into the server process. Editing the generator while the Studio is
+    running therefore pairs a NEW template with the OLD code, and the mismatch
+    only surfaces in the final assembly — after the knowledge pass, the art,
+    every simulation and every review have been paid for. One course was lost
+    that way to `'theme_light' is undefined`.
+
+    This turns that into an instant, named failure. Raises RuntimeError with
+    the offending variable; the caller reports it instead of starting work.
+    """
+    import jinja2
+
+    from .i18n import get_ui_strings, LOCALE_NAMES
+    from .theme_light import to_light
+
+    theme = get_theme_css(theme_name)
+    template_html = _read_file(Path(template_dir) / "template.html")
+    template_html = _inline_shell(template_html, Path(template_dir))
+    probe = {
+        "theme": theme, "theme_light": to_light(theme),
+        "ui": get_ui_strings("en"), "locale_names": LOCALE_NAMES,
+        "ui_locales_json": "{}", "title": "", "title_display": "",
+        "subtitle": "", "description": "", "total_chapters": 1,
+        "game_config": "", "engine_js": "", "pixel_art_js": "",
+        "minigames_js": "", "script_data": "", "init_js": "",
+    }
+    try:
+        jinja2.Environment(undefined=jinja2.StrictUndefined, autoescape=False) \
+            .from_string(template_html).render(**probe)
+    except jinja2.UndefinedError as exc:
+        raise RuntimeError(
+            f"The game template needs something this build does not provide: {exc}. "
+            "If you just changed the generator, restart the Studio — it loads "
+            "Python once at startup but reads the template from disk every time."
+        ) from exc
+    except Exception as exc:
+        raise RuntimeError(f"The game template could not be rendered: {exc}") from exc
+
+
+def get_rendered_style_block(template_dir: str, theme: dict, ui: dict,
+                             theme_light: dict | None = None) -> str:
     """Render only the <style>...</style> block from template.html with theme and ui.
     Used by the player data package so the player can inject CSS without the full template.
     """
     engine = Path(template_dir)
-    template_html = _read_file(engine / "template.html")
+    template_html = _inline_shell(_read_file(engine / "template.html"), engine)
     start = template_html.find("<style>")
     end = template_html.find("</style>") + len("</style>")
     if start == -1 or end < start:
@@ -915,7 +1022,9 @@ def get_rendered_style_block(template_dir: str, theme: dict, ui: dict) -> str:
     style_section = template_html[start:end]
     env = jinja2.Environment(undefined=jinja2.StrictUndefined, autoescape=False)
     tmpl = env.from_string(style_section)
-    return tmpl.render(theme=theme, ui=ui)
+    from .theme_light import to_light
+
+    return tmpl.render(theme=theme, ui=ui, theme_light=theme_light or to_light(theme))
 
 # All mechanics are sim_*; template mechanics (MECHANIC_TO_FILE) no longer used.
 # MECHANIC_TO_FILE = {
@@ -1137,11 +1246,17 @@ def assemble(
     script = content["script"]
     theme_name = content.get("theme", "pink-cute")
 
-    # 1. Read template.html
-    template_html = _read_file(engine / "template.html")
+    # 1. Read template.html (shared shell layer spliced into its markers)
+    template_html = _inline_shell(_read_file(engine / "template.html"), engine)
 
     # 2. Read engine.js
     engine_js = _read_file(engine / "engine.js")
+    # The pack runtime is inlined so a generated game stays one self-contained
+    # file; only the art itself is fetched, and its absence is handled.
+    try:
+        engine_js = _read_file(engine / "pixelpack.js") + "\n;\n" + engine_js
+    except Exception:
+        pass
 
     # 3. Read needed minigame JS files
     mechanics = _detect_mechanics(script)
@@ -1257,8 +1372,11 @@ def assemble(
     if cover_js:
         combined_pixel_js += "\n;\n" + cover_js
 
+    from .theme_light import to_light
+
     html = tmpl.render(
         theme=theme,
+        theme_light=to_light(theme),
         ui=ui,
         ui_locales_json=ui_locales_json,
         locale_names=LOCALE_NAMES,

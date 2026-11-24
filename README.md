@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="edgameclaw/readme/edgameclaw_logo.png" alt="EdGameClaw" width="160">
+  <img src="edgameclaw/readme/ahafrog.png" alt="EdGameClaw" width="120">
+</p>
+
+<p align="center">
+  <em>Turn a PDF or lecture notes into playable browser mini-games.</em>
 </p>
 
 <p align="center">
@@ -208,7 +212,7 @@ There is no official image in this repo. If you build or use a community image, 
     playsinline
     preload="metadata"
     muted
-    poster="edgameclaw/readme/edgameclaw_logo.png"
+    poster="edgameclaw/readme/showcase.png"
     src="https://github.com/user-attachments/assets/d5c19a93-6f8d-4ed2-855d-d57046bcf008"
     width="100%"
     style="max-width: 920px; border-radius: 12px;"
@@ -572,7 +576,7 @@ EdGameClaw 通过 **pip** 安装（发布在 PyPI）。Conda 负责隔离 Python
     playsinline
     preload="metadata"
     muted
-    poster="edgameclaw/readme/edgameclaw_logo.png"
+    poster="edgameclaw/readme/showcase.png"
     src="https://github.com/user-attachments/assets/d5c19a93-6f8d-4ed2-855d-d57046bcf008"
     width="100%"
     style="max-width: 920px; border-radius: 12px;"

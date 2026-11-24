@@ -521,13 +521,24 @@ body::after{opacity:var(--scan)}
 .combo-empty{padding:8px 10px;font-size:11px;color:var(--muted)}
 </style>
 <script>(function(){try{var m=localStorage.getItem('edgc_theme');if(!m)m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.setAttribute('data-theme',m);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+<style>
+/* ── AhaFrog mascot ──────────────────────────────────────────────────────────
+   Stands in for the generic spinner during a run: same job, with a face. The
+   static mark is the markup's own content, so if the Lottie runtime fails to
+   load -- or the JSON is missing -- the frog is still there, just still. */
+.frog-mascot{width:52px;height:52px;flex:0 0 auto;margin-right:2px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.frog-mascot img{border-radius:12px;object-fit:contain}
+.frog-mascot svg{width:100%;height:100%;display:block}
+.gen-status{display:flex;align-items:center;gap:10px}
+</style>
 </head>
 <body>
 
 <div class="topbar">
   <div class="topbar-inner">
     <a class="topbar-brand" href="/">
-      <img src="/readme/edgameclaw_logo.png" alt="EdGameClaw" width="30" height="30" style="border-radius:8px;object-fit:contain">
+      <img src="/static/ahafrog.png" alt="EdGameClaw" width="30" height="30" style="border-radius:8px;object-fit:contain">
       EdGameClaw
     </a>
     <div class="topbar-nav">
@@ -677,6 +688,7 @@ body::after{opacity:var(--scan)}
         <svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg> <span id="t-gen-title">Generating Games...</span>
       </div>
       <div class="gen-status">
+        <div class="frog-mascot" id="frogMascot" aria-hidden="true"><img src="/static/ahafrog.png" alt="" width="52" height="52"></div>
         <div class="spinner" id="genSpinner"></div>
         <span id="genStatusText">Starting...</span>
         <button type="button" id="genStopBtn" class="btn" style="display:none;margin-left:auto;padding:5px 14px;font-size:12px"
@@ -1624,6 +1636,9 @@ async function runGeneration(content, courseId, opts) {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.detail || 'Failed to start generation');
     setFlowStep(2);
+    // The frog is the progress indicator now, so the generic spinner stands down.
+    if (typeof Frog !== 'undefined') Frog.set('working');
+    const sp = document.getElementById('genSpinner'); if (sp) sp.style.display = 'none';
     _activeJobId = data.job_id;
     const stopBtn = document.getElementById('genStopBtn');
     if (stopBtn) { stopBtn.style.display = 'inline-flex'; stopBtn.disabled = false; }
@@ -1690,6 +1705,7 @@ function pollJob(jid, courseId, totalGames) {
           } else if (msg.type === 'substep') {
             document.getElementById('genStepLabel').textContent = msg.label + ' (' + msg.pct + '%)';
           } else if (msg.type === 'game_done') {
+            if (typeof Frog !== 'undefined') Frog.cheer();
             const card = document.getElementById('gc' + (msg.game - 1));
             if (card) {
               card.className = 'gen-game-card done';
@@ -1702,6 +1718,7 @@ function pollJob(jid, courseId, totalGames) {
 
       if (job.status === 'completed') {
         clearInterval(_pollTimer);
+        if (typeof Frog !== 'undefined') Frog.set('done');
         document.getElementById('genProgressFill').style.width = '100%';
         document.getElementById('genSpinner').style.display = 'none';
         document.getElementById('genStatusText').textContent = 'Complete!';
@@ -1722,6 +1739,7 @@ function pollJob(jid, courseId, totalGames) {
         clearInterval(_pollTimer);
         _activeJobId = null;
         document.getElementById('genSpinner').style.display = 'none';
+        if (typeof Frog !== 'undefined') Frog.set('stopped');
         document.getElementById('genStatusText').textContent =
           'Stopped - what finished is saved. Resume from My Courses to continue.';
         document.getElementById('genStepLabel').textContent = '';
@@ -1736,6 +1754,7 @@ function pollJob(jid, courseId, totalGames) {
         _activeJobId = null;
         const sbErr = document.getElementById('genStopBtn');
         if (sbErr) sbErr.style.display = 'none';
+        if (typeof Frog !== 'undefined') Frog.set('failed');
         document.getElementById('genStatusText').textContent = 'Failed: ' + (job.error || 'Unknown error');
         document.getElementById('genBtn').disabled = false;
         toast('Generation failed: ' + (job.error || ''), 'error');
@@ -1977,5 +1996,70 @@ document.addEventListener('DOMContentLoaded', () => { applyTheme(currentTheme())
     </div>
   </div>
 </div>
+<script src="/static/vendor/lottie_light.min.js"></script>
+<script>
+/* The frog reacts to the run rather than decorating it: each state below is a
+   state the generation is actually in, so the animation doubles as status.
+   Everything is optional -- if lottie or a JSON is missing the static mark
+   stays and nothing throws. */
+const Frog = (function () {
+  const BASE = '/static/frog/';
+  const STATES = {
+    idle:    'idle.json',      // nothing running
+    working: 'excited.json',   // a generation is in flight
+    step:    'aha.json',       // one lesson just finished
+    done:    'happy.json',     // the whole course finished
+    failed:  'sad.json',       // the run failed
+    stopped: 'idle.json',      // the user stopped it; progress is kept
+  };
+  let host = null, anim = null, current = null, cache = {};
+
+  function el() { return host || (host = document.getElementById('frogMascot')); }
+
+  function play(state, opts) {
+    opts = opts || {};
+    const box = el();
+    if (!box || typeof lottie === 'undefined' || !STATES[state]) return;
+    if (state === current && !opts.force) return;
+    current = state;
+    const file = STATES[state];
+
+    const start = (data) => {
+      if (current !== state) return;            // a newer state won the race
+      if (anim) { anim.destroy(); anim = null; }
+      box.innerHTML = '';
+      try {
+        anim = lottie.loadAnimation({
+          container: box, renderer: 'svg',
+          loop: opts.once ? false : true, autoplay: true, animationData: data,
+        });
+        if (opts.once && opts.then) {
+          anim.addEventListener('complete', function () { play(opts.then, {}); });
+        }
+      } catch (e) { restore(box); }
+    };
+
+    if (cache[file]) { start(cache[file]); return; }
+    fetch(BASE + file)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('no frog')))
+      .then(d => { cache[file] = d; start(d); })
+      .catch(() => restore(box));
+  }
+
+  function restore(box) {
+    // Back to the still mark rather than an empty hole.
+    if (box && !box.querySelector('img')) {
+      box.innerHTML = '<img src="/static/ahafrog.png" alt="" width="52" height="52">';
+    }
+  }
+
+  return {
+    set: play,
+    cheer: function () { play('step', { once: true, then: 'working' }); },
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', function () { Frog.set('idle'); });
+</script>
 </body>
 </html>

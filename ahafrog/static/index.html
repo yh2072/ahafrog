@@ -19,7 +19,7 @@
   --greenG:color-mix(in srgb,#88ce02 24%,transparent);
   --cyan:#00e5c8;--amber:#ff9f0a;--danger:#f17a73;
   --text:#f2f3f5;--text2:#a9aeb9;--muted:#7d8391;--dim:#575d69;
-  --font:'PixelZH',ui-monospace,system-ui,sans-serif;
+  --font:ui-monospace,system-ui,sans-serif;
   /* Small, consistent radii. Big soft blobs read as "web app", not pixel game. */
   --radius:12px;--radius-sm:8px;--radius-xs:6px;
   --col:1120px;
@@ -30,7 +30,6 @@
 /* The Studio's pixel face, now on the landing page too, so the two match.
    The file may be absent (it is not shipped in the repo); the monospace
    fallback keeps the retro feel instead of dropping to a UI sans. */
-@font-face{font-family:'PixelZH';src:url('/assets/ZhengQingKeNanBeiCiGongPuSongTi-2.ttf') format('truetype');font-display:swap}
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;line-height:1.6}
 a{color:inherit;text-decoration:none}
 

@@ -14,42 +14,23 @@ generator/__pycache__/
 # pi agent harness (.pi/extensions is source and IS tracked)
 .pi/logs/
 
-# Licensed pixel-art pack: usable locally and shippable inside a built game,
-# but the raw PNGs are not redistributed from this public repository.
-# Remove this line if your licence permits redistributing the source assets.
-# Purchased 16-bit asset pack: NOT redistributed.
+# Licensed pixel-art pack and audio: usable locally, not redistributed whole.
 #
-# The owner's licence covers using the pack in this product, which is not the
-# same as republishing the artwork. So the pack stays out of the repository
-# except for the handful of UI frames the engine chrome actually draws with --
-# the dialogue plate, the heart HUD, two emotes, the arrow and the pixel face.
-# Character art, monsters, terrain and the other ~1850 files are never
-# published; PixelPack.ready()/has() report what is missing and the engine
-# falls back on its own drawing, so a clone runs correctly without them.
+# The owner's licence covers using these in this product, which is not the same
+# as republishing the artwork. The redistributable part -- the UI frames the
+# engine chrome actually draws with (dialogue plate, heart HUD, two emotes, the
+# arrow, the pixel face) and the audio -- now lives inside the package at
+# ahafrog/assets/, so it ships with a pip install and is tracked there.
 #
-# git cannot look inside an ignored directory, so each level is re-opened
-# before its files can be excepted.
-assets/pixelpack/*
-!assets/pixelpack/catalog.json
-!assets/pixelpack/ui/
-assets/pixelpack/ui/*
-!assets/pixelpack/ui/Arrow.png
-!assets/pixelpack/ui/Dialog/
-assets/pixelpack/ui/Dialog/*
-!assets/pixelpack/ui/Dialog/DialogBox.png
-!assets/pixelpack/ui/Dialog/DialogBoxFaceset.png
-!assets/pixelpack/ui/Dialog/DialogueBoxSimple.png
-!assets/pixelpack/ui/Dialog/FacesetBox.png
-!assets/pixelpack/ui/Receptacle/
-assets/pixelpack/ui/Receptacle/*
-!assets/pixelpack/ui/Receptacle/Heart.png
-!assets/pixelpack/ui/Emote/
-assets/pixelpack/ui/Emote/*
-!assets/pixelpack/ui/Emote/emote5.png
-!assets/pixelpack/ui/Emote/emote12.png
-!assets/pixelpack/ui/Font/
-assets/pixelpack/ui/Font/*
-!assets/pixelpack/ui/Font/NormalFont.ttf
+# This directory is the owner's local copy of the FULL pack: character art,
+# monsters, terrain and the other ~1850 files, which are never published.
+# The /assets mount reads this directory first and falls back to the package
+# per file, so dropping the full pack here -- with its own catalog.json --
+# re-activates it locally without changing anything that gets published.
+#
+# Leading slash matters: a bare "assets/" is unanchored and would also match
+# ahafrog/assets/, un-shipping the files above.
+/assets/
 
 # Node
 node/node_modules/

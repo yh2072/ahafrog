@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ahafrog"
-version = "0.2.4"
+version = "0.2.5"
 description = "Self-hosted AI studio: turn learning materials into playable browser mini-games"
 readme = "README_PYPI.md"
 requires-python = ">=3.10"

@@ -2662,9 +2662,21 @@ async def generate_game(
     out_content = {}
     assemble(str(engine_dir), content, html_path, out_content=out_content)
 
-    # Step 6b: Write data package for player-based playback (encrypt when GAME_PACKAGE_SECRET is set)
+    # Step 6b: Write the data package for player-based playback.
+    #
+    # Plain JSON only. The encrypted copy is not written any more: it protected a
+    # package at rest in object storage, and the cost of that protection turned
+    # out to be the whole library. The key is not derivable from anything -- lose
+    # it and every game.pkg.enc ever written is unreadable, with no recovery and
+    # no warning until someone opens a course. That happened.
+    #
+    # What this does not change: the HMAC that gates a game page URL still uses
+    # GAME_PACKAGE_SECRET, and a paid course is still gated by the purchase check
+    # in front of it. Those never depended on the package being ciphertext.
+    #
+    # write_package() keeps the ability, so turning it back on is one argument.
     from .package_builder import write_package
-    write_package(out_content, str(engine_dir), str(output_path), write_json=True, write_encrypted=True)
+    write_package(out_content, str(engine_dir), str(output_path), write_json=True, write_encrypted=False)
 
     # Save cover art as cover.js (self-registering to window._EDGAME_COVERS)
     if cover_js and "drawCover" in cover_js:

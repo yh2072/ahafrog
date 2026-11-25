@@ -1407,6 +1407,9 @@ async def regenerate_single_simulation_code(
     all_chunks: list[dict] | None = None,
     custom_prompt: str = "",
     existing_code: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
 ) -> str:
     """Generate simulation code for one chunk (e.g. for studio regen-sim with user prompt).
 
@@ -1414,6 +1417,12 @@ async def regenerate_single_simulation_code(
     revise in place (preserve structure, apply user instructions). Otherwise runs full
     design -> implement pipeline.
     """
+    # Same contract as generate_game: a caller that supplies credentials gets them
+    # used for this call. Without this, a host that runs several users' jobs in one
+    # process has no way to say whose key to spend -- the context would fall back to
+    # the server's environment, and one user's regeneration would bill another's key.
+    _current_generate_ctx.set(_bind_api_config(api_key, base_url, model))
+
     custom_prompt = (custom_prompt or "").strip()
     if existing_code and existing_code.strip():
         # Regen from existing: one-shot revise so user modifications are preserved

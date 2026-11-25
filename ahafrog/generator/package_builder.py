@@ -16,6 +16,30 @@ from pathlib import Path
 from .assembler import get_rendered_style_block, get_theme_css, _build_init_js
 
 
+def _fernet():
+    """Build the Fernet cipher from GAME_PACKAGE_SECRET.
+
+    The KDF parameters below are part of the on-disk package format, not an
+    implementation detail: algorithm, length, salt and iteration count all feed the
+    key. Change any one of them and every game.pkg.enc ever written becomes
+    undecryptable, including the ones already sitting in object storage. They are
+    pinned here deliberately -- do not "modernise" them.
+
+    Raises ValueError when the secret is absent or too short.
+    """
+    secret = os.environ.get("GAME_PACKAGE_SECRET", "").encode("utf-8")
+    if not secret or len(secret) < 16:
+        raise ValueError("GAME_PACKAGE_SECRET required (at least 16 bytes)")
+    import base64
+
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"edgame_pkg_salt", iterations=100_000)
+    return Fernet(base64.urlsafe_b64encode(kdf.derive(secret)))
+
+
 def _obfuscate_js(code: str) -> str:
     """Minify/mangle JS with terser (subprocess). Returns original code if terser unavailable or fails."""
     if not code or not code.strip():
@@ -127,15 +151,7 @@ def write_package(
             print("  [package] GAME_PACKAGE_SECRET missing or too short; skip encryption", file=sys.stderr)
         else:
             try:
-                from cryptography.fernet import Fernet
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-                import base64
-                kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"edgame_pkg_salt", iterations=100_000)
-                key = base64.urlsafe_b64encode(kdf.derive(secret))
-                f = Fernet(key)
-                payload = json.dumps(pkg, ensure_ascii=False).encode("utf-8")
-                enc_path.write_bytes(f.encrypt(payload))
+                enc_path.write_bytes(encrypt_package_dict_to_bytes(pkg))
                 print(f"  [package] Wrote encrypted {enc_path.relative_to(out.parent.parent)}", file=sys.stderr)
                 return (str(json_path) if json_path else None, str(enc_path))
             except Exception as e:
@@ -144,18 +160,25 @@ def write_package(
     return (str(json_path) if json_path else None, None)
 
 
+def encrypt_package_dict_to_bytes(pkg: dict) -> bytes:
+    """Encrypt an already-built package dict and return the game.pkg.enc bytes.
+
+    For callers that never touch the filesystem -- e.g. a server rewriting a package
+    straight back into object storage.
+    """
+    payload = json.dumps(pkg, ensure_ascii=False).encode("utf-8")
+    return _fernet().encrypt(payload)
+
+
+def decrypt_package_bytes(cipher: bytes) -> dict:
+    """Decrypt raw game.pkg.enc bytes and return the package dict.
+
+    The bytes-level entry point, for callers holding the ciphertext in memory rather
+    than on disk (e.g. an object-storage response body).
+    """
+    return json.loads(_fernet().decrypt(cipher).decode("utf-8"))
+
+
 def decrypt_package(enc_path: str | Path) -> dict:
-    """Decrypt game.pkg.enc and return the package dict. Used by the server when serving the package."""
-    secret = os.environ.get("GAME_PACKAGE_SECRET", "").encode("utf-8")
-    if not secret or len(secret) < 16:
-        raise ValueError("GAME_PACKAGE_SECRET required for decryption")
-    from cryptography.fernet import Fernet
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-    import base64
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"edgame_pkg_salt", iterations=100_000)
-    key = base64.urlsafe_b64encode(kdf.derive(secret))
-    f = Fernet(key)
-    enc_path = Path(enc_path)
-    cipher = enc_path.read_bytes()
-    return json.loads(f.decrypt(cipher).decode("utf-8"))
+    """Decrypt game.pkg.enc from disk and return the package dict."""
+    return decrypt_package_bytes(Path(enc_path).read_bytes())

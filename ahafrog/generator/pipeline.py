@@ -974,11 +974,17 @@ _SIM_IMPLEMENT_CONTINUE_ATTEMPTS = 2
 _SIM_IMPLEMENT_REPAIR_TOKENS = 12000
 _SIM_IMPLEMENT_REPAIR_ROUNDS = 3
 
-_SIM_REFINE_MAX_TOKENS = 10000
-_SIM_REFINE_CONTINUE_TOKENS = 10000
-_SIM_REFINE_CONTINUE_ATTEMPTS = 1
-_SIM_REFINE_REPAIR_TOKENS = 8000
-_SIM_REFINE_REPAIR_ROUNDS = 2
+# Refine rewrites the same artifact implement produced: sim_refine_prompt feeds
+# the old code back in and says "Rewrite it completely if needed", so its output
+# is a whole simulation, not a patch. Giving it two thirds of implement's budget
+# cut off every simulation that came anywhere near implement's ceiling, and one
+# continuation attempt was not enough to close what the cut left open. Refine
+# matches implement now. Lower these and truncated refinements come back.
+_SIM_REFINE_MAX_TOKENS = 15000
+_SIM_REFINE_CONTINUE_TOKENS = 15000
+_SIM_REFINE_CONTINUE_ATTEMPTS = 2
+_SIM_REFINE_REPAIR_TOKENS = 12000
+_SIM_REFINE_REPAIR_ROUNDS = 3
 
 _COVER_REPAIR_ROUNDS = 2
 _COVER_REPAIR_TOKENS = 12000
@@ -1009,7 +1015,9 @@ def _get_sim_repair_profile(repair_mode: str) -> dict:
         return {
             "label": "pixel-art",
             "rounds": _SANDBOX_REPAIR_ROUNDS,
-            "tokens": _SIM_REFINE_REPAIR_TOKENS,
+            # Its own constant: pixel art has nothing to do with sim refinement,
+            # and borrowing that budget meant tuning one silently moved the other.
+            "tokens": _PIXEL_ART_REPAIR_TOKENS,
             "step": "review_batch",
         }
     return {
@@ -1029,6 +1037,7 @@ async def _sandbox_validate_and_repair(code: str, chunk_index: int, repair_mode:
     """
     label = f"sim_{chunk_index}"
     profile = _get_sim_repair_profile(repair_mode)
+    rounds_run = 0
     for round_idx in range(profile["rounds"]):
         result = run_in_sandbox(code, label=label)
         if result.ok:
@@ -1051,30 +1060,45 @@ async def _sandbox_validate_and_repair(code: str, chunk_index: int, repair_mode:
 
         repair_prompt = build_repair_prompt(code, result, repair_mode=repair_mode)
         system = (
+            # "Keep the patch as small as possible" used to sit next to "output
+            # the complete code", and a model that believed the first half
+            # answered with a 777-character fragment that the length guard in
+            # _postprocess_sim_code then threw out. Change as little as possible,
+            # but what comes back is always the whole file.
             "You are a JavaScript bug-fixer. You receive code that failed in a "
-            "sandbox test environment and the error message. Fix the EXACT error — "
-            "do not rewrite the whole simulation. This is a "
-            f"{profile['label']} repair pass. Keep the patch as small as possible. "
+            "sandbox test environment and the error message. Fix the EXACT error "
+            "and change as little else as possible — do not redesign the "
+            f"simulation. This is a {profile['label']} repair pass. "
             "If the error is about a queried element, assign it to a variable and "
-            "null-check it before addEventListener. Output ONLY the corrected "
-            "complete JavaScript code. No markdown fences. No explanation."
+            "null-check it before addEventListener. "
+            "Output the COMPLETE corrected file, from its first line to its last, "
+            "including every part you did not change. Never output a fragment, a "
+            "diff, or only the fixed function. No markdown fences. No explanation."
         )
         try:
             fixed_raw = await _get_generate()(repair_prompt, system, max_tokens=profile["tokens"], step=profile["step"])
             fixed = _postprocess_sim_code(fixed_raw, chunk_index)
             code = fixed
+            rounds_run = round_idx + 1
         except Exception as e:
+            # Carry on rather than break. A rejected answer -- too short, no
+            # registerMinigame -- says this attempt was unusable, not that the
+            # next one will be; breaking here spent one bad reply and forfeited
+            # every remaining round, so a single lazy response cost the game.
+            rounds_run = round_idx + 1
             print(
-                f"  [SANDBOX-FIX] {label} repair attempt {round_idx + 1} failed: {e}",
+                f"  [SANDBOX-FIX] {label} repair attempt {round_idx + 1}/{profile['rounds']} "
+                f"unusable: {e}",
                 file=sys.stderr,
             )
-            break
+            continue
 
     # Final check after all repair rounds
     final = run_in_sandbox(code, label=label)
     if not final.ok:
         print(
-            f"  [SANDBOX-WARN] {label} still has errors after {profile['rounds']} repairs: "
+            f"  [SANDBOX-WARN] {label} still has errors after {rounds_run} of "
+            f"{profile['rounds']} repair rounds: "
             f"{final.phase} — using best version anyway",
             file=sys.stderr,
         )
@@ -1350,14 +1374,40 @@ async def _step_simulation_code(topic: str, chunk_info: dict, chunk_index: int, 
                     refined = await _step_sim_refine(
                         code, judge, chunk_info, chunk_index, theme, locale,
                     )
-                    # Quick sandbox check before committing
+                    # Quick sandbox check before committing.
+                    #
+                    # "or len(refined) > len(code)" used to stand here, and it is
+                    # how a working minigame became a placeholder: a refinement
+                    # that was cut off mid-expression and then extended by the
+                    # continuation pass is *longer* than the original while not
+                    # parsing at all, so the longer-is-better arm accepted it,
+                    # logged a checkmark, and threw away code that ran. Length
+                    # only decides when there is nothing to lose -- when the
+                    # pre-refine draft does not parse either.
                     sb = run_in_sandbox(refined, label=f"{label}_refined")
-                    if sb.ok or len(refined) > len(code):
+                    if sb.ok:
                         code = refined
                         print(f"  [REFINE] {label}: refined to {len(code):,}ch ✓", file=sys.stderr)
                     else:
-                        print(f"  [REFINE] {label}: refined version worse, keeping original", file=sys.stderr)
+                        base = run_in_sandbox(code, label=f"{label}_prerefine")
+                        if not base.ok and len(refined) > len(code):
+                            code = refined
+                            print(
+                                f"  [REFINE] {label}: neither version parses "
+                                f"({base.phase} → {sb.phase}), keeping the longer refinement",
+                                file=sys.stderr,
+                            )
+                        else:
+                            print(
+                                f"  [REFINE] {label}: refinement does not parse ({sb.phase}), "
+                                "keeping the original",
+                                file=sys.stderr,
+                            )
+                            repair_mode = "implement"
                 except Exception as re_err:
+                    # Keeping implement's draft means the repair that follows is
+                    # repairing implement's code, so it gets implement's profile.
+                    repair_mode = "implement"
                     print(f"  [REFINE] {label}: refine failed ({re_err}), keeping original", file=sys.stderr)
 
             # ── Sandbox validation + repair ──

@@ -112,40 +112,79 @@
       if (theme.border && (el = document.getElementById('title-cover'))) el.style.border = '2px solid ' + theme.border;
       if (theme.glow && (el = document.getElementById('title-cover'))) el.style.boxShadow = '0 0 30px ' + theme.glow;
       if (theme.muted && (el = document.getElementById('start-hint'))) el.style.color = theme.muted;
-      function runInit() {
-        var initJs = pkg.init_js;
-        if (initJs) {
-          var s = document.createElement('script');
-          s.textContent = initJs;
-          document.body.appendChild(s);
+      // Engine and package scripts share ONE global script scope, so a top-level
+      // 'const gpx' in generated pixel art collides with the engine's
+      // 'function gpx' and the whole script fails to parse -- no backgrounds, no
+      // characters, no title logo, while the dialogue still runs. Load order
+      // cannot fix it: the collision is symmetric, const-before-function throws
+      // just the same. Instead: inject, and when the browser rejects the script,
+      // read the offending identifier out of its own error report, rename only
+      // that identifier inside this one script, and try again. Renaming rather
+      // than demoting it to 'var' leaves the engine's own binding alone, so a
+      // package helper with a different signature can never overwrite the
+      // engine's. One 'const a=..,b=..' can collide twice, hence the loop.
+      function renameIdent(code, name) {
+        if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) return null;
+        var re = new RegExp('(^|[^A-Za-z0-9_$.])' + name + '(?![A-Za-z0-9_$])', 'g');
+        return code.replace(re, function(m, pre) { return pre + name + '$pkg'; });
+      }
+      function injectScript(code, label) {
+        if (typeof code !== 'string' || !code.trim()) return false;
+        var COLLISION = /Identifier '([^']+)' has already been declared/;
+        for (var attempt = 0; attempt < 8; attempt++) {
+          // A script that fails to COMPILE does not make appendChild throw --
+          // the browser reports the error on window instead, synchronously,
+          // while appendChild is still running. So listen there; try/catch here
+          // would never see it. preventDefault keeps a collision we are about
+          // to repair out of the console, and anything else is left alone.
+          var collided = null, s = null, thrown = null;
+          var onErr = function(ev) {
+            var msg = (ev && ev.message) || (ev && ev.error && ev.error.message) || '';
+            var hit = COLLISION.exec(String(msg));
+            if (hit) { collided = hit[1]; if (ev.preventDefault) ev.preventDefault(); }
+          };
+          window.addEventListener('error', onErr, true);
+          try {
+            s = document.createElement('script');
+            s.textContent = code;
+            document.body.appendChild(s);
+          } catch (err) { thrown = err; }
+          window.removeEventListener('error', onErr, true);
+          if (!collided && thrown) {
+            var hit2 = COLLISION.exec(String((thrown && thrown.message) || thrown));
+            if (hit2) collided = hit2[1];
+            else { console.warn('Game: inject ' + label + ' failed', thrown); return false; }
+          }
+          if (!collided) return true;
+          if (s && s.parentNode) s.parentNode.removeChild(s);
+          var fixed = renameIdent(code, collided);
+          if (!fixed || fixed === code) {
+            console.warn('Game: ' + label + ' collided on "' + collided + '" and could not be repaired');
+            return false;
+          }
+          console.warn('Game: ' + label + ' re-declared "' + collided + '" -- renamed inside the package');
+          code = fixed;
         }
+        console.warn('Game: inject ' + label + ' gave up after too many name collisions');
+        return false;
+      }
+      function runInit() {
+        injectScript(pkg.init_js, 'init_js');
       }
       function injectScripts() {
         window.BACKGROUNDS = window.BACKGROUNDS || [];
         window.CHAR_DRAW_FNS = window.CHAR_DRAW_FNS || {};
-        // Load engine.js FIRST so gpx/grect/registerMinigame are defined before
-        // pixel art scripts run — prevents "Identifier already declared" SyntaxError
-        // when AI-generated pixel art re-declares gpx/grect with const/let.
+        // engine.js first, so the package can see gpx/grect/registerMinigame.
         var eng = document.createElement('script');
         eng.src = apiBase + '/engine/engine.js';
         eng.onload = function() {
-          var parts = [pkg.pixel_art_js, pkg.cover_js].filter(Boolean);
-          for (var i = 0; i < parts.length; i++) {
-            var code = parts[i];
-            if (typeof code !== 'string' || !code.trim()) continue;
-            try {
-              var s = document.createElement('script');
-              s.textContent = code;
-              document.body.appendChild(s);
-            } catch (err) {
-              console.warn('Game: inject script failed', err);
-            }
-          }
+          injectScript(pkg.pixel_art_js, 'pixel_art_js');
+          injectScript(pkg.cover_js, 'cover_js');
           window.BACKGROUNDS = window.BACKGROUNDS || [];
           window.CHAR_DRAW_FNS = window.CHAR_DRAW_FNS || {};
           // Restore rect/px to the engine's correct implementations in case pixel art
           // defined window.rect/window.px overrides with a different signature.
-          // Engine defines rect(x,y,w,h,c) — always use #main canvas context.
+          // Engine defines rect(x,y,w,h,c) -- always use #main canvas context.
           (function() {
             var _mc = document.getElementById('main');
             var _mctx = _mc ? _mc.getContext('2d') : null;
@@ -154,13 +193,7 @@
               window.px = function(x,y,c){_mctx.fillStyle=c;_mctx.fillRect(x,y,1,1);};
             }
           })();
-          if (pkg.minigames_js && typeof pkg.minigames_js === 'string' && pkg.minigames_js.trim()) {
-            try {
-              var s = document.createElement('script');
-              s.textContent = pkg.minigames_js;
-              document.body.appendChild(s);
-            } catch (err) { console.warn('Game: minigames_js inject failed', err); }
-          }
+          injectScript(pkg.minigames_js, 'minigames_js');
           runInit();
         };
         eng.onerror = function() { console.error('Game: failed to load engine.js'); };

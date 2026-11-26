@@ -6,10 +6,16 @@
 """Assembles generated content with static engine templates into a single HTML file."""
 
 import json
+import os
+import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import jinja2
+
+from .sandbox import _NODE_BIN
 
 # ---------------------------------------------------------------------------
 # Theme Registry — each theme defines CSS colors + pixel art palette + mood
@@ -1049,6 +1055,144 @@ def _read_file(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+# ---------------------------------------------------------------------------
+# Global-name collisions between engine.js and generated JS
+# ---------------------------------------------------------------------------
+#
+# engine.js and every generated piece land in ONE global scope: the single
+# <script> block in template.html, and -- for player.html -- separate <script>
+# tags that still share the page's globals. So a generated `const gpx = ...`
+# collides with the engine's `function gpx(...)`, and the collision is a
+# *compile* error, not a runtime one. In the standalone page that kills the
+# whole block, engine.js included, and the game never starts; in the player it
+# silently drops that one piece, so the dialogue runs over blank art. Load
+# order cannot help: const-before-function throws exactly the same.
+#
+# Let V8 find them. It knows the real scoping rules -- which declarations
+# conflict, and which are legal overrides (function-over-function, the way a
+# generated minigame deliberately replaces closeMiniGame) -- and no regex over
+# minified arrow-function soup ever will. Then rename the offending identifier
+# *inside the generated piece only*: renaming instead of deleting keeps that
+# piece working, and renaming instead of demoting it to `var` leaves the
+# engine's own binding alone, so a generated helper with a different signature
+# can never overwrite the engine's.
+
+_COLLISION_RE = re.compile(r"Identifier '([^']+)' has already been declared")
+_IDENT_RE = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
+_GEN_SUFFIX = "$gen"
+
+
+def _rename_ident(js: str, name: str) -> str:
+    """Rename every *binding* reference to `name`, leaving the data alone.
+
+    Two spellings must survive untouched or the piece keeps compiling while
+    quietly reading the wrong thing:
+
+      o.name      a property access -- never renamed, so the key it reads
+                  must not be renamed either
+      {name: v}   an object-literal key, which is that same data
+
+    Shorthand ({name}, and the destructuring pattern const {name} = o) is
+    expanded to an explicit key, so the key keeps its spelling and the
+    binding still follows the rename.
+    """
+    esc = re.escape(name)
+    pat = re.compile(
+        r"(^|[^A-Za-z0-9_$.])" + esc + r"(?![A-Za-z0-9_$])(\s*)([:,}])?"
+    )
+
+    def _sub(m: "re.Match[str]") -> str:
+        pre, gap, nxt = m.group(1), m.group(2) or "", m.group(3) or ""
+        opens_member = pre.strip() in ("{", ",")
+        if opens_member and nxt == ":":
+            return m.group(0)                       # key: leave the data alone
+        if opens_member and nxt in (",", "}"):      # shorthand -> explicit key
+            return f"{pre}{name}: {name}{_GEN_SUFFIX}{gap}{nxt}"
+        return f"{pre}{name}{_GEN_SUFFIX}{gap}{nxt}"
+
+    return pat.sub(_sub, js)
+
+
+def _first_collision(js: str) -> str | None:
+    """Parse `js` with node; return the re-declared identifier if that is why it failed.
+
+    Any other parse failure returns None, so genuinely broken generated code is
+    left to the existing repair pass instead of being renamed at random.
+    """
+    if not _NODE_BIN:
+        return None
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".js", delete=False, encoding="utf-8"
+        ) as fh:
+            fh.write(js)
+            tmp = fh.name
+        r = subprocess.run(
+            [_NODE_BIN, "--check", tmp],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r.returncode == 0:
+            return None
+        m = _COLLISION_RE.search(r.stderr or "")
+        if m and _IDENT_RE.match(m.group(1)):
+            return m.group(1)
+        return None
+    except (subprocess.SubprocessError, OSError):
+        return None
+    finally:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _repair_global_collisions(
+    prefix_js: str, js: str, label: str, suffix_js: str = ""
+) -> str:
+    """Rename names in `js` that re-declare something the surrounding scope owns.
+
+    `prefix_js` / `suffix_js` are the code that shares the scope before and
+    after this piece, so a clash with either is found. Only `js` is ever
+    rewritten.
+    """
+    if not js or not js.strip() or not _NODE_BIN:
+        return js
+    original = js
+    renamed: list[str] = []
+    for _ in range(12):
+        name = _first_collision(prefix_js + "\n;\n" + js + "\n;\n" + suffix_js)
+        if name is None:
+            break
+        if name in renamed or name.endswith(_GEN_SUFFIX):
+            # The same name came back after a rename, so the duplicate is
+            # inside this piece, not a clash with the engine. Renaming both
+            # halves cannot separate them -- leave it to _validate_js_string.
+            print(
+                f"  [PATCH] {label}: '{name}' is declared twice within the piece "
+                "— left for JS repair",
+                file=sys.stderr,
+            )
+            return original
+        fixed = _rename_ident(js, name)
+        if fixed == js:
+            print(
+                f"  [PATCH] {label}: could not rename re-declared '{name}'",
+                file=sys.stderr,
+            )
+            return original
+        js = fixed
+        renamed.append(name)
+    if renamed:
+        print(
+            f"  [PATCH] {label}: renamed {len(renamed)} engine global(s) "
+            f"re-declared by generated code: {', '.join(renamed)}",
+            file=sys.stderr,
+        )
+    return js
+
+
 def _validate_js_string(js: str, label: str) -> str:
     """Validate and auto-repair a standalone JS snippet.
 
@@ -1332,6 +1476,37 @@ def assemble(
             if old_mech in _inv_remap:
                 m["mechanic"] = _inv_remap[old_mech]
 
+    # Built here, ahead of the repair below, so the check sees the same global
+    # scope the page will have: GAME before the engine, SCRIPT and init after
+    # the generated pieces.
+    game_config_js = (
+        f"const GAME = {json.dumps(config, ensure_ascii=False, indent=2)};"
+    )
+    script_data_js = (
+        f"const SCRIPT = {json.dumps(script, ensure_ascii=False, indent=2)};"
+    )
+    init_js = _build_init_js()
+
+    # engine.js and the generated pieces share one global scope. Repair any
+    # re-declaration now, so that the standalone page and game.pkg.json (which
+    # player.html injects) both get the same, loadable code.
+    cover_js = content.get("cover_js", "")
+    _scope_tail = script_data_js + "\n;\n" + init_js
+    _scope_head = game_config_js + "\n;\n" + engine_js
+    pixel_art_js = _repair_global_collisions(
+        _scope_head, pixel_art_js, output_path + "[pixel_art]",
+        cover_js + "\n;\n" + minigames_js + "\n;\n" + _scope_tail,
+    )
+    _scope_head += "\n;\n" + pixel_art_js
+    cover_js = _repair_global_collisions(
+        _scope_head, cover_js, output_path + "[cover]",
+        minigames_js + "\n;\n" + _scope_tail,
+    )
+    _scope_head += "\n;\n" + cover_js
+    minigames_js = _repair_global_collisions(
+        _scope_head, minigames_js, output_path + "[minigames]", _scope_tail,
+    )
+
     if out_content is not None:
         out_content.update({
             "config": config,
@@ -1339,22 +1514,13 @@ def assemble(
             "pixel_art_js": pixel_art_js,
             "minigames_js": minigames_js,
             "theme": theme_name,
-            "cover_js": content.get("cover_js", ""),
+            "cover_js": cover_js,
         })
 
     # 4. Build theme dict
     theme = get_theme_css(theme_name)
 
     # 5. Render the template
-    game_config_js = (
-        f"const GAME = {json.dumps(config, ensure_ascii=False, indent=2)};"
-    )
-    script_data_js = (
-        f"const SCRIPT = {json.dumps(script, ensure_ascii=False, indent=2)};"
-    )
-
-    cover_js = content.get("cover_js", "")
-    init_js = _build_init_js()
 
     env = jinja2.Environment(
         undefined=jinja2.StrictUndefined,

@@ -265,11 +265,25 @@ input,textarea{-webkit-user-select:text;-moz-user-select:text;-ms-user-select:te
 {{ game_config }}
 </script>
 <script>window.UI_LOCALES = {{ ui_locales_json | safe }};</script>
+<!-- One script element per piece. They all share the page's single global
+     scope, so load order and visibility are unchanged -- but a compile error in
+     generated art or minigames now costs only that piece, instead of taking
+     engine.js down with it and leaving a page where nothing starts at all.
+     (No literal tag spelled out above: _validate_assembled_js finds blocks with
+     a regex that does not skip comments, and would read this one as code.) -->
 <script>
 {{ engine_js }}
+</script>
+<script>
 {{ pixel_art_js }}
+</script>
+<script>
 {{ minigames_js }}
+</script>
+<script>
 {{ script_data }}
+</script>
+<script>
 {{ init_js }}
 </script>
 <script>

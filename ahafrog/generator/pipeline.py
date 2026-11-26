@@ -23,7 +23,12 @@ from functools import partial
 
 from . import prompts
 from .api import generate as _raw_generate
-from .assembler import assemble, get_theme_css, get_audio_profile
+from .assembler import (
+    assemble,
+    get_theme_css,
+    get_audio_profile,
+    _repair_global_collisions,
+)
 from .sandbox import run_in_sandbox, build_repair_prompt
 from .i18n import get_ui_strings, extract_locale_content, DEFAULT_LOCALE
 
@@ -2002,22 +2007,27 @@ def _sanitize_pixel_art_piece(js: str, expected_globals: set[str], label: str) -
     if not js.strip():
         return js
 
-    # Strip top-level gpx/grect re-declarations — engine.js owns these globals.
-    # If pixel art JS re-declares them with const/let/var, engine.js gets
-    # "Identifier 'gpx' has already been declared" SyntaxError and fails to load.
-    _redecl_stripped = 0
-    _new_lines = []
-    for _line in js.split("\n"):
-        _stripped = _line.strip()
-        if re.match(r'^(const|let|var)\s+(gpx|grect)\s*[=\(]', _stripped) or \
-           re.match(r'^function\s+(gpx|grect)\s*\(', _stripped):
-            _new_lines.append("// [engine.js provides gpx/grect — redecl removed]")
-            _redecl_stripped += 1
-        else:
-            _new_lines.append(_line)
-    if _redecl_stripped:
-        js = "\n".join(_new_lines)
-        print(f"  [PATCH] Stripped {_redecl_stripped}× gpx/grect redecl in {label}", file=sys.stderr)
+    # Re-declaring an engine global (gpx/grect/px/rect) with const or let is a
+    # *compile* error, so the whole piece fails to parse and the art silently
+    # never appears. This used to be fixed by deleting the offending line --
+    # which is fine while the model emits one declaration per line, and
+    # catastrophic the moment it emits
+    #     const gpx=(...)=>{...},grect=(...)=>{...};function drawTitleLogo(...)
+    # on a single line, where deleting the line takes drawTitleLogo with it. It
+    # also matched *indented* declarations, which are locals inside a function
+    # and never clash with a global at all.
+    #
+    # So hand it to V8 instead, against a stub of the globals the engine owns,
+    # and rename rather than delete. assembler._repair_global_collisions runs
+    # again later against the real engine.js and catches everything this stub
+    # does not; doing the cheap pass here keeps the sandbox from spending an
+    # LLM repair round on a name clash.
+    js = _repair_global_collisions(
+        "function gpx(g,x,y,c){} function grect(g,x,y,w,h,c){}\n"
+        "function px(x,y,c){} function rect(x,y,w,h,c){}",
+        js,
+        label,
+    )
 
     # Fix common AI mistakes: ctx.rect/ctx.px or g.rect/g.px → grect(ctx,...)/gpx(ctx,...)
     # Also fix g.grect(...) → grect(g, ...) and g.gpx(...) → gpx(g, ...)
